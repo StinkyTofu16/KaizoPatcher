@@ -13,58 +13,125 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 <style>
-/* Layout: the emulator fills the screen under a slim bar with Menu and New run. Single dark look. */
-:root { --bg: #000; --bar: #0d1117; --ink: #e4e9f0; --muted: #98a3b3; --accent: #7d9bff; --warn: #f0b75c; --bad: #ff8f86; color-scheme: dark; }
+/* Layout: the emulator fills the screen; one Menu button opens a sheet with speed, emulator options, New run and Quit. Single dark look. */
+:root { --bg: #000; --bar: #0d1117; --panel: #161c25; --ink: #e4e9f0; --muted: #98a3b3; --line: #2e3845; --accent: #7d9bff; --accent-ink: #0d1422; --warn: #f0b75c; --bad: #ff8f86; color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, sans-serif; overflow: hidden; overscroll-behavior: none; }
 [hidden] { display: none !important; }
 .shell { position: fixed; inset: 0; display: flex; flex-direction: column; }
-.bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bar);
+.bar { flex: none; display: flex; align-items: center; gap: 12px; background: var(--bar);
   padding-top: calc(env(safe-area-inset-top, 0px) + 6px); padding-bottom: 6px;
   padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 .bar .info { font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bar .info b { color: var(--ink); font-weight: 600; }
-.bar button, .bar a { font: 600 .88rem system-ui, -apple-system, sans-serif; color: var(--accent); background: transparent; border: 1.5px solid #2e3845; border-radius: 8px; padding: 7px 12px; min-height: 36px; text-decoration: none; white-space: nowrap; cursor: pointer; }
-.bar button.armed { color: #0d1422; background: var(--warn); border-color: var(--warn); }
-.bar button:focus-visible, .bar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.barbtn { font: 600 .88rem system-ui, -apple-system, sans-serif; color: var(--accent); background: transparent; border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 12px; min-height: 36px; white-space: nowrap; cursor: pointer; }
+.barbtn:focus-visible, .sheet button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.speedtag { font: 700 .72rem system-ui, sans-serif; color: var(--accent-ink); background: var(--accent); border-radius: 99px; padding: 2px 8px; }
 .stage { flex: 1; min-height: 0; position: relative; padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
 .gamebox { position: relative; width: 100%; height: 100%; }
 #game { width: 100%; height: 100%; }
 .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .msg.bad { color: var(--bad); }
-/* Speed toggles sit where the emulator's own Fast/Slow buttons would: 56px up from the bottom, inside the side zones. */
-.speed { position: absolute; bottom: 56px; width: 50px; height: 31px; z-index: 20; font: 15px/29px system-ui, -apple-system, sans-serif; text-align: center;
-  color: #fff; background: rgba(255, 255, 255, .15); border: 1px solid #ccc; border-radius: 5px; padding: 0; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-.speed[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0d1422; font-weight: 700; }
-#fastBtn { left: 80px; }
-#slowBtn { right: 80px; }
-/* Phone held sideways: the bar turns into two small buttons in the empty top corners so the game gets the full height. */
+
+/* On-screen controller. Real sizes (no transforms: the D-pad reads touches from its own box size), proportional
+   button positions, generous invisible touch margins, and high contrast so it reads over light game screens. */
+#game { --zone: 168px; --pad-bottom: 46px; }
+#game .ejs_virtualGamepad_parent { bottom: 8px !important; }
+#game .ejs_virtualGamepad_left { width: var(--zone) !important; height: var(--zone) !important; bottom: var(--pad-bottom) !important; left: 10px !important; }
+#game .ejs_virtualGamepad_right { width: var(--zone) !important; height: var(--zone) !important; bottom: var(--pad-bottom) !important; right: 10px !important; }
+#game .ejs_virtualGamepad_button { background: rgba(8, 10, 14, .62) !important; border: 1.5px solid rgba(255, 255, 255, .9) !important; color: #fff !important;
+  text-shadow: 0 1px 2px #000; display: flex !important; align-items: center; justify-content: center; line-height: 1 !important; }
+#game .ejs_virtualGamepad_button_down { background: rgba(125, 155, 255, .75) !important; }
+#game .b_a, #game .b_b { width: 42% !important; height: 42% !important; font-size: calc(var(--zone) * .2) !important; }
+#game .b_select, #game .b_start, #game .b_l, #game .b_r { width: 46% !important; height: 34px !important; font-size: 15px !important; border-radius: 8px !important; }
+#game .b_l, #game .b_r { font-size: 22px !important; }
+#game .ejs_virtualGamepad_button::after { content: ""; position: absolute; inset: -12px; }
+#game .ejs_dpad_main::after { content: ""; position: absolute; inset: -18px; }
+#game .ejs_dpad_horizontal { height: 34% !important; }
+#game .ejs_dpad_vertical { width: 34% !important; }
+#game .ejs_dpad_main { opacity: .9 !important; }
+#game .ejs_dpad_bar { background: rgba(8, 10, 14, .62) !important; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .9); }
+#game .ejs_message { top: auto !important; bottom: 6px; right: auto !important; left: 50%; transform: translateX(-50%); font-size: 13px !important; }
+.runtag { display: none; }
+/* The emulator's own toolbar and its corner icon stay hidden unless turned on from the Menu sheet. */
+body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
+.ejs_virtualGamepad_open { display: none !important; }
+
+/* Menu sheet */
+.scrim { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: min(420px, 100%); max-height: 100%; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 0 0;
+  padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 14px; }
+.sheet h2 { margin: 0; font: 700 1.05rem system-ui, sans-serif; }
+.sheet .sub { margin: -10px 0 0; color: var(--muted); font-size: .85rem; }
+.label { font: 600 .72rem system-ui, sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { font: 600 .95rem system-ui, sans-serif; color: var(--ink); background: transparent; border: 0; border-right: 1.5px solid var(--line); min-height: 44px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.sbtn { font: 600 1rem system-ui, sans-serif; width: 100%; min-height: 48px; border-radius: 10px; cursor: pointer; border: 1.5px solid var(--line); background: transparent; color: var(--ink); text-align: left; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; }
+.sbtn small { color: var(--muted); font-weight: 500; font-size: .82rem; }
+.sbtn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); justify-content: center; }
+.sbtn.danger { color: var(--warn); }
+.sbtn.armed { background: var(--warn); border-color: var(--warn); color: var(--accent-ink); }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.hint { margin: 0; color: var(--muted); font-size: .8rem; }
+.hint.ok { color: #6fd39c; }
+
+/* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
-  .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px;
-    padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+  #game { --zone: 138px; --pad-bottom: 44px; --side: 160px; }
+  /* Narrow the game image so the controls get their own columns instead of covering the screen. */
+  #game .ejs_canvas { position: absolute; top: 0; bottom: 0; left: var(--side); width: calc(100% - 2 * var(--side)) !important; height: 100% !important; }
+  .runtag { display: inline; }
+  .bar { position: absolute; top: 0; left: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px; padding-left: max(10px, env(safe-area-inset-left, 0px)); }
   .bar .info { display: none; }
-  .bar button, .bar a { pointer-events: auto; background: rgba(13, 17, 23, .85); font-size: .78rem; padding: 4px 10px; min-height: 30px; }
-  .bar button { margin-right: 30px; }
+  .barbtn { pointer-events: auto; background: rgba(13, 17, 23, .85); font-size: .78rem; padding: 4px 10px; min-height: 30px; }
+  .sheet { border-radius: 16px; margin-bottom: 8px; max-height: calc(100% - 16px); }
+  .scrim { align-items: center; }
 }
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="bar">
-    <a href="play.html" id="menuBtn">Menu</a>
+    <button class="barbtn" id="menuBtn" aria-haspopup="dialog"><span class="runtag" id="runTag"></span>Menu</button>
     <span class="info" id="info"></span>
-    <button id="newBtn">New run</button>
+    <span class="speedtag" id="speedTag" hidden></span>
   </div>
   <div class="stage">
     <div class="gamebox">
       <div id="game"></div>
-      <button class="speed" id="fastBtn" aria-pressed="false" hidden>Fast</button>
-      <button class="speed" id="slowBtn" aria-pressed="false" hidden>Slow</button>
       <div class="msg" id="msg">Loading your run…</div>
     </div>
   </div>
 </div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle">Paused</h2>
+    <p class="sub" id="sheetSub"></p>
+    <div>
+      <p class="label">Game speed</p>
+      <div class="seg" role="group" aria-label="Game speed">
+        <button id="spSlow" aria-pressed="false">Slow</button>
+        <button id="spNormal" aria-pressed="true">Normal</button>
+        <button id="spFast" aria-pressed="false">Fast</button>
+      </div>
+    </div>
+    <div class="list">
+      <button class="sbtn primary" id="resumeBtn">Resume</button>
+      <button class="sbtn" id="toolsBtn">Emulator options <small id="toolsState">Save states, settings</small></button>
+      <button class="sbtn" id="starterBtn">Use this save for new runs <small id="starterState">Skip the intro</small></button>
+      <button class="sbtn" id="starterClearBtn" hidden>Remove starter save <small>New runs start from scratch</small></button>
+      <p class="hint" id="starterHint">Save in the game first (for example in your room after the intro), then tap this. New runs will start from that save, with fresh randomized Pokémon.</p>
+      <button class="sbtn danger" id="newBtn">New run <small>Re-randomize</small></button>
+      <button class="sbtn" id="quitBtn">Quit to home <small>Progress is saved</small></button>
+    </div>
+  </div>
+</div>
+
 <script src="kp-store.js"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
@@ -73,27 +140,117 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   let setup, run;
   try { setup = await KPStore.get('setup'); run = await KPStore.get('run'); } catch (e) {}
   if (!setup || !run) { location.replace('play.html'); return; }
-  $('info').innerHTML = '';
   const b = document.createElement('b'); b.textContent = 'Run #' + run.id;
   $('info').append(b, document.createTextNode(' · ' + run.preset));
+  $('runTag').textContent = '#' + run.id + ' \u00b7 ';
+  $('sheetSub').textContent = setup.label + ' · Run #' + run.id + ' · ' + run.preset;
 
-  const saveNow = () => { try { window.EJS_emulator && EJS_emulator.started && EJS_emulator.gameManager.saveSaveFiles(); } catch (e) {} };
+  const emu = () => (window.EJS_emulator && EJS_emulator.started) ? EJS_emulator : null;
+  const saveNow = () => { try { const e = emu(); e && e.gameManager.saveSaveFiles(); } catch (e) {} };
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
   window.addEventListener('pagehide', saveNow);
-  $('menuBtn').addEventListener('click', (e) => { e.preventDefault(); saveNow(); setTimeout(() => { location.href = 'play.html'; }, 400); });
 
-  let armed = false, t = null;
-  $('newBtn').addEventListener('click', () => {
-    if (!armed) {
-      armed = true; $('newBtn').textContent = 'Tap again to end run'; $('newBtn').classList.add('armed');
-      t = setTimeout(() => { armed = false; $('newBtn').textContent = 'New run'; $('newBtn').classList.remove('armed'); }, 4000);
-      return;
-    }
-    clearTimeout(t); saveNow();
-    $('newBtn').disabled = true; $('newBtn').textContent = 'Starting…';
-    setTimeout(() => { location.href = 'play.html?new=1'; }, 400);
+  // ---- Menu sheet (pauses the game while open) ----
+  let pausedByMenu = false;
+  function openSheet() {
+    const e = emu();
+    if (e && !e.paused && typeof e.togglePlaying === 'function') { e.togglePlaying(); pausedByMenu = true; }
+    $('scrim').hidden = false; $('resumeBtn').focus();
+  }
+  function closeSheet() {
+    $('scrim').hidden = true; disarm();
+    const e = emu();
+    if (e && pausedByMenu && e.paused) e.togglePlaying();
+    pausedByMenu = false;
+  }
+  $('menuBtn').addEventListener('click', openSheet);
+  $('resumeBtn').addEventListener('click', closeSheet);
+  $('scrim').addEventListener('click', (ev) => { if (ev.target === $('scrim')) closeSheet(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('scrim').hidden) closeSheet(); });
+
+  // ---- Speed (on/off, not hold) ----
+  let speed = 'normal';
+  function setSpeed(next) {
+    speed = next;
+    try {
+      const e = emu();
+      if (e) { e.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0); e.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0); }
+    } catch (err) { console.error(err); }
+    $('spSlow').setAttribute('aria-pressed', String(speed === 'slow'));
+    $('spNormal').setAttribute('aria-pressed', String(speed === 'normal'));
+    $('spFast').setAttribute('aria-pressed', String(speed === 'fast'));
+    $('speedTag').hidden = speed === 'normal';
+    $('speedTag').textContent = speed === 'fast' ? 'Fast' : 'Slow';
+  }
+  $('spSlow').addEventListener('click', () => setSpeed('slow'));
+  $('spNormal').addEventListener('click', () => setSpeed('normal'));
+  $('spFast').addEventListener('click', () => setSpeed('fast'));
+
+  // ---- Emulator toolbar on demand ----
+  let tools = false;
+  $('toolsBtn').addEventListener('click', () => {
+    tools = !tools;
+    document.body.classList.toggle('kp-tools', tools);
+    $('toolsBtn').firstChild.textContent = tools ? 'Hide emulator options ' : 'Emulator options ';
+    $('toolsState').textContent = tools ? 'Toolbar shown at the bottom' : 'Save states, settings';
+    closeSheet();
+    try { const e = emu(); if (e && tools) e.menu.open(true); } catch (err) {}
   });
 
+  // ---- Starter save: lets new runs skip the intro ----
+  function showStarter() {
+    const has = !!setup.startSave;
+    $('starterBtn').firstChild.textContent = has ? 'Replace starter save ' : 'Use this save for new runs ';
+    $('starterState').textContent = has ? 'New runs skip the intro' : 'Skip the intro';
+    $('starterClearBtn').hidden = !has;
+  }
+  showStarter();
+  $('starterBtn').addEventListener('click', async () => {
+    const e = emu(); const hint = $('starterHint');
+    if (!e) { hint.className = 'hint'; hint.textContent = 'Start the game first.'; return; }
+    try {
+      e.gameManager.saveSaveFiles();
+      const data = e.gameManager.getSaveFile(false);
+      if (!data || !data.length) { hint.className = 'hint'; hint.textContent = 'There\u2019s no in-game save yet. Save in the game first, then tap this again.'; return; }
+      setup.startSave = data.slice().buffer;
+      await KPStore.set('setup', setup);
+      hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.';
+      showStarter();
+    } catch (err) { console.error(err); hint.className = 'hint'; hint.textContent = 'Couldn\u2019t store the save: ' + ((err && err.message) || err); }
+  });
+  $('starterClearBtn').addEventListener('click', async () => {
+    delete setup.startSave; await KPStore.set('setup', setup); showStarter();
+    $('starterHint').className = 'hint'; $('starterHint').textContent = 'Starter save removed. New runs start from the beginning.';
+  });
+  // A brand-new run has no save file yet: copy the starter save in, then restart so the title screen offers Continue.
+  function seedStarter() {
+    if (!setup.startSave) return;
+    try {
+      const gm = EJS_emulator.gameManager, path = gm.getSaveFilePath();
+      if (gm.FS.analyzePath(path).exists) return;
+      let cp = '';
+      for (const part of path.split('/').slice(0, -1)) { if (!part) continue; cp += '/' + part; if (!gm.FS.analyzePath(cp).exists) gm.FS.mkdir(cp); }
+      gm.FS.writeFile(path, new Uint8Array(setup.startSave));
+      gm.loadSaveFiles();
+      gm.restart();
+    } catch (err) { console.error('Starter save failed', err); }
+  }
+
+  // ---- New run (two taps) and Quit ----
+  let armed = false, armTimer = null;
+  function disarm() { armed = false; clearTimeout(armTimer); $('newBtn').classList.remove('armed'); $('newBtn').firstChild.textContent = 'New run '; }
+  $('newBtn').addEventListener('click', () => {
+    if (!armed) {
+      armed = true; $('newBtn').classList.add('armed'); $('newBtn').firstChild.textContent = 'Tap again to end run #' + run.id + ' ';
+      armTimer = setTimeout(disarm, 4000); return;
+    }
+    clearTimeout(armTimer); saveNow();
+    $('newBtn').disabled = true; $('newBtn').firstChild.textContent = 'Starting… ';
+    setTimeout(() => { location.href = 'play.html?new=1'; }, 400);
+  });
+  $('quitBtn').addEventListener('click', () => { saveNow(); setTimeout(() => { location.href = 'play.html'; }, 400); });
+
+  // ---- Emulator ----
   window.EJS_player = '#game';
   window.EJS_core = setup.core;
   window.EJS_gameUrl = new Blob([run.rom]);
@@ -109,36 +266,25 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_backgroundColor = '#000000';
   window.EJS_defaultOptions = { 'save-save-interval': '30' };
   window.EJS_Buttons = { restart: false, netplay: false, exitEmulation: false, cacheManager: false, cheat: false };
-  // Controls live in the side zones only: Select under the D-pad, Start under A/B, nothing over the game screen.
+  // Controller: Select centered under the D-pad, Start centered under A/B, each with a clear gap. Speed lives in the Menu sheet.
   const pad = [
-    { type: 'button', text: 'B', id: 'b', location: 'right', left: 10, top: 70, bold: true, input_value: 0 },
-    { type: 'button', text: 'A', id: 'a', location: 'right', left: 81, top: 40, bold: true, input_value: 8 },
+    { type: 'button', text: 'B', id: 'b', location: 'right', left: '2%', top: '50%', bold: true, input_value: 0 },
+    { type: 'button', text: 'A', id: 'a', location: 'right', left: '56%', top: '14%', bold: true, input_value: 8 },
     { type: 'dpad', id: 'dpad', location: 'left', left: '50%', top: '50%', joystickInput: false, inputValues: [4, 5, 6, 7] },
-    { type: 'button', text: 'Select', id: 'select', location: 'left', left: 0, top: 138, fontSize: 15, block: true, input_value: 2 },
-    { type: 'button', text: 'Start', id: 'start', location: 'right', left: 80, top: 143, fontSize: 15, block: true, input_value: 3 },
+    { type: 'button', text: 'Select', id: 'select', location: 'left', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 2 },
+    { type: 'button', text: 'Start', id: 'start', location: 'right', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 3 },
   ];
   if (setup.core === 'gba') pad.push(
-    { type: 'button', text: 'L', id: 'l', location: 'left', left: 3, top: -90, bold: true, block: true, input_value: 10 },
-    { type: 'button', text: 'R', id: 'r', location: 'right', right: 3, top: -90, bold: true, block: true, input_value: 11 });
+    { type: 'button', text: 'L', id: 'l', location: 'left', left: '2%', top: 'calc(-34px - 22%)', bold: true, block: true, input_value: 10 },
+    { type: 'button', text: 'R', id: 'r', location: 'right', right: '2%', top: 'calc(-34px - 22%)', bold: true, block: true, input_value: 11 });
   window.EJS_VirtualGamepadSettings = pad;
-
-  // Fast and Slow are on/off toggles instead of hold-to-use.
-  const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-  let speed = 'normal';
-  function setSpeed(next) {
-    speed = (speed === next) ? 'normal' : next;
-    try {
-      EJS_emulator.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0);
-      EJS_emulator.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0);
-    } catch (e) { console.error(e); }
-    $('fastBtn').setAttribute('aria-pressed', String(speed === 'fast'));
-    $('slowBtn').setAttribute('aria-pressed', String(speed === 'slow'));
-  }
-  $('fastBtn').addEventListener('click', () => setSpeed('fast'));
-  $('slowBtn').addEventListener('click', () => setSpeed('slow'));
-
   window.EJS_ready = () => { $('msg').hidden = true; };
-  window.EJS_onGameStart = () => { $('msg').hidden = true; $('fastBtn').hidden = !touch; $('slowBtn').hidden = !touch; };
+  window.EJS_onGameStart = () => {
+    $('msg').hidden = true;
+    seedStarter();
+    // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.
+    [0, 300, 1000].forEach((ms) => setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
+  };
   const sc = document.createElement('script');
   sc.src = EJS_VERSION_PATH + 'loader.js';
   sc.onerror = () => { $('msg').className = 'msg bad'; $('msg').textContent = 'Couldn’t load the game player. Check your connection and reload.'; };

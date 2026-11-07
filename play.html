@@ -78,6 +78,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <div class="meta">
       <span>Preset <b id="presetName"></b></span>
       <span>Run <b class="run" id="runNo"></b></span>
+      <span id="introSkip" hidden>Intro <b>skipped</b></span>
     </div>
     <div class="actions">
       <button class="primary" id="continueBtn">Continue run</button>
@@ -121,6 +122,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     $('newBtn').className = run ? 'secondary' : 'primary';
     $('newBtn').textContent = run ? 'New run' : 'Start first run';
     $('logBtn').hidden = !(run && run.log);
+    $('introSkip').hidden = !setup.startSave;
   };
   render();
 
