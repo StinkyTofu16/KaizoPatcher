@@ -52,6 +52,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
 .toprow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .toprow h1 { margin: 0 !important; }
 .toplink { font: 600 .95rem var(--f-body); color: var(--accent); text-decoration: none; border: 1.5px solid var(--accent); border-radius: 8px; padding: 6px 14px; }
+.saved { border-color: var(--accent); }
+.savedname { margin: 0; font-size: 1.05rem; }
+.savedgo { align-self: flex-start; background: var(--accent); color: var(--accent-ink); padding: 10px 16px; }
 header h1 { font: 700 2rem/1.05 var(--f-display); letter-spacing: .01em; margin: 0 0 6px; text-wrap: balance; }
 header p { margin: 0; color: var(--muted); max-width: 60ch; }
 .step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -114,6 +117,13 @@ footer { color: var(--muted); font-size: .82rem; }
     <div class="toprow"><h1>KaizoPatcher</h1><a class="toplink" href="play.html">Play</a></div>
     <p>Applies 23 Kaizo, IronMON and speed-up patches to your own game files, right here in your browser, so you can play them in Delta. Nothing is uploaded; your ROM never leaves your phone.</p>
   </header>
+
+  <section class="step saved" id="savedBanner" hidden>
+    <p class="hint">Saved on this phone</p>
+    <p class="savedname"><b id="savedName"></b> <span class="hint" id="savedRun"></span></p>
+    <a class="toplink savedgo" href="play.html">Continue playing</a>
+    <p class="hint">You only need the steps below to change games or patches.</p>
+  </section>
 
   <section class="step" id="step1">
     <h2><span class="n">1</span>Your game</h2>
@@ -495,6 +505,19 @@ if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
 <script src="kp-store.js"></script>
+<script>
+(async () => {
+  let s = null, r = null;
+  try { s = await KPStore.get('setup'); r = await KPStore.get('run'); } catch (e) {}
+  if (!s) return;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const freshLaunch = !document.referrer || new URL(document.referrer).origin !== location.origin;
+  if (standalone && freshLaunch && !location.hash) { location.replace('play.html'); return; }
+  document.getElementById('savedName').textContent = s.label;
+  document.getElementById('savedRun').textContent = (r ? '\u00b7 Run #' + r.id : '') + ' \u00b7 ' + s.presetName;
+  document.getElementById('savedBanner').hidden = false;
+})();
+</script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
