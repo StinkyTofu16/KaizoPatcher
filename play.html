@@ -128,15 +128,26 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     $('logBtn').hidden = !(run && run.log);
     $('introSkip').hidden = !setup.startSave;
   };
+  const isNewRun = new URLSearchParams(location.search).get('new') === '1';
+  const gameCode = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
+  // A starter save must be from before the first Pokémon; otherwise every run would start with that same Pokémon.
+  const starterIsClean = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !p || p.party.length === 0; } catch (e) { return true; } };
+  let starterNote = '';
+  if (setup.startSave && !starterIsClean(setup.startSave)) {
+    delete setup.startSave; await KPStore.set('setup', setup);
+    starterNote = 'Your starter save had a Pok\u00e9mon in it, so new runs kept starting with the same Pok\u00e9mon. It\u2019s been removed. Next run, save in your room before getting a Pok\u00e9mon.';
+  }
   render();
+  if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
   // Accounts: show who's signed in, and bring a starter save down from the cloud on a new device.
-  KPCloud.init().then(async (ok) => {
+  // Skipped while starting a new run: the randomizer needs the phone's memory.
+  if (!isNewRun) KPCloud.init().then(async (ok) => {
     if (!ok) return;
     const showUser = (u) => { $('acctLink').textContent = u ? (u.username || 'Account') : 'Sign in'; };
     KPCloud.onChange(showUser); showUser(KPCloud.user());
     if (KPCloud.user() && !setup.startSave) {
-      try { const c = await KPCloud.fetchSaves(); if (c && c.startSave) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); render(); } } catch (e) { console.warn(e); }
+      try { const c = await KPCloud.fetchSaves(); if (c && c.startSave && starterIsClean(c.startSave)) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); render(); } } catch (e) { console.warn(e); }
     }
   });
 
@@ -165,13 +176,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
       setup.runs = id;
       if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await KPStore.set('setup', setup);
-      // Wait for the account service to finish loading so a signed-in player's run is recorded.
-      await Promise.race([KPCloud.init(), new Promise((r) => setTimeout(r, 5000))]);
-      if (KPCloud.user()) {
-        const code = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
-        await Promise.race([KPCloud.startRun({ runKey: setup.key + '-' + id, game: code, label: setup.label, preset: setup.presetName, runNo: id }).catch((e) => console.warn(e)),
-          new Promise((r) => setTimeout(r, 2000))]);
-      }
+      // The game screen records the run to the player's account on its first launch.
       location.href = 'game.html';
     } catch (e) {
       console.error(e);
@@ -181,7 +186,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     }
   }
   $('newBtn').addEventListener('click', () => {
-    if (!run || armed) { armed = false; clearTimeout(armTimer); newRun(); return; }
+    if (!run || armed) { armed = false; clearTimeout(armTimer); $('newBtn').disabled = true; location.href = 'play.html?new=1'; return; }
     armed = true; $('newBtn').textContent = 'Tap again to end run #' + run.id;
     armTimer = setTimeout(() => { armed = false; render(); }, 4000);
   });

@@ -174,7 +174,17 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
   fetch('gen3-species.json').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
-  KPCloud.init();
+  // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
+  const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
+  if (setup.startSave && hasParty(setup.startSave)) { delete setup.startSave; try { await KPStore.set('setup', setup); } catch (e) {} }
+  // The account service loads after the game is running, to keep memory free while the emulator starts.
+  function startCloud() {
+    KPCloud.init().then(() => {
+      if (KPCloud.user() && !run.cloudStarted) {
+        KPCloud.startRun(runInfo).then(() => { run.cloudStarted = true; return KPStore.set('run', run); }).catch((err) => console.warn(err));
+      }
+    });
+  }
   function showProgress(p) {
     const el = $('progressLine'); if (!p) { el.hidden = true; return; }
     const team = p.party.map((m) => m.name + ' ' + m.level).join(', ');
@@ -276,6 +286,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       e.gameManager.saveSaveFiles();
       const data = e.gameManager.getSaveFile(false);
       if (!data || !data.length) { hint.className = 'hint'; hint.textContent = 'There\u2019s no in-game save yet. Save in the game first, then tap this again.'; return; }
+      if (hasParty(data)) { hint.className = 'hint'; hint.textContent = 'This save already has a Pok\u00e9mon, so every new run would start with it. Use a save from before you get your first Pok\u00e9mon (for example in your room after the intro).'; return; }
       setup.startSave = data.slice().buffer;
       await KPStore.set('setup', setup);
       if (KPCloud.user()) KPCloud.backupSaves({ startSave: setup.startSave }).catch((err) => console.warn(err));
@@ -363,6 +374,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     // Only a run's very first launch gets the starter save; later launches (Continue) keep the run's own progress.
     if (!run.launched) { seedStarter(); run.launched = true; KPStore.set('run', run).catch(() => {}); }
     setTimeout(track, 5000);
+    setTimeout(startCloud, 8000);
     // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.
     [0, 300, 1000].forEach((ms) => setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
   };
