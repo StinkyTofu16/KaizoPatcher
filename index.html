@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KaizoPatcher">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
 <title>KaizoPatcher</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -43,6 +49,9 @@ html { padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
 .wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.toprow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.toprow h1 { margin: 0 !important; }
+.toplink { font: 600 .95rem var(--f-body); color: var(--accent); text-decoration: none; border: 1.5px solid var(--accent); border-radius: 8px; padding: 6px 14px; }
 header h1 { font: 700 2rem/1.05 var(--f-display); letter-spacing: .01em; margin: 0 0 6px; text-wrap: balance; }
 header p { margin: 0; color: var(--muted); max-width: 60ch; }
 .step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -102,7 +111,7 @@ footer { color: var(--muted); font-size: .82rem; }
 
 <div class="wrap">
   <header>
-    <h1>KaizoPatcher</h1>
+    <div class="toprow"><h1>KaizoPatcher</h1><a class="toplink" href="play.html">Play</a></div>
     <p>Applies 23 Kaizo, IronMON and speed-up patches to your own game files, right here in your browser, so you can play them in Delta. Nothing is uploaded; your ROM never leaves your phone.</p>
   </header>
 
@@ -151,7 +160,8 @@ footer { color: var(--muted); font-size: .82rem; }
       <label class="field" for="presetSel"><span>Preset</span>
         <select id="presetSel"></select>
       </label>
-      <div class="row"><button class="primary" id="randBtn">Randomize</button></div>
+      <div class="row"><button class="primary" id="playBtn">Play in browser</button><button class="secondary" id="randBtn">Randomize to a file</button></div>
+      <p class="hint" id="playHint">Play in browser keeps this game and preset on your phone. Every New run re-randomizes it and starts a fresh save.</p>
       <div class="bar" id="randBar" hidden><i class="indet"></i></div>
       <p class="status" id="randStatus" aria-live="polite"></p>
       <div id="randResult" hidden>
@@ -484,6 +494,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
+<script src="kp-store.js"></script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -793,6 +804,9 @@ function prepRandom(id, p) {
   for (const pr of PRESETS[fam]) { const o = document.createElement('option'); o.value = pr.file; o.textContent = pr.name; if (pr.name === 'Kaizo') o.selected = true; sel.append(o); }
   $('randHint').textContent = fam + ' presets for ' + id.label + '.';
   $('step4').setAttribute('aria-disabled', 'false'); $('randBox').hidden = false; $('randResult').hidden = true; $('randStatus').textContent = '';
+  const playable = !!KP_CORES[id.sys]; $('playBtn').hidden = !playable;
+  $('playHint').textContent = playable ? 'Play in browser keeps this game and preset on your phone. Every New run re-randomizes it and starts a fresh save.' : 'DS games can\u2019t be played in the browser player yet. Randomize to a file and play it in Delta.';
+  KPStore.get('setup').then((s) => { if (s && playable) $('playHint').textContent += ' This replaces ' + s.label + ', your current browser game.'; }).catch(() => {});
 }
 function loadCheerpJ() {
   if (cjReady) return cjReady;
@@ -838,6 +852,21 @@ $('randBtn').addEventListener('click', async () => {
     console.error(e);
     setRand(e && e.message ? e.message : 'Randomizing failed.', 'bad');
   } finally { btn.disabled = false; $('randBar').hidden = true; updateGo(); }
+});
+$('playBtn').addEventListener('click', async () => {
+  const r = state.result, id = state.ident, c = id && KP_CORES[id.sys]; if (!r || !c) return;
+  const btn = $('playBtn'); btn.disabled = true; btn.textContent = 'Saving\u2026';
+  try {
+    const label = r.romName.replace(/\.[^.]+$/, '');
+    const sel = $('presetSel');
+    await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: FAMILY[id.ids[0]],
+      presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, rom: await r.romBlob.arrayBuffer(), runs: 0 });
+    await KPStore.del('run');
+    location.href = 'play.html?new=1';
+  } catch (e) {
+    console.error(e); setRand('Couldn\u2019t save the game on this device: ' + ((e && e.message) || e), 'bad');
+    btn.disabled = false; btn.textContent = 'Play in browser';
+  }
 });
 $('randSaveBtn').addEventListener('click', () => { if (randOut) saveBlob(randOut.rom, randOut.romName); });
 $('logBtn').addEventListener('click', () => { if (randOut && randOut.log) saveBlob(randOut.log, randOut.logName); });

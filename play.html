@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KaizoPatcher</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KaizoPatcher">
+<meta name="theme-color" content="#11161d">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an app home screen. One game card, two big actions, settings below. Dark-first like a handheld. */
+:root {
+  --bg: #11161d; --panel: #1a212b; --ink: #e4e9f0; --muted: #98a3b3; --line: #2e3845;
+  --accent: #7d9bff; --accent-ink: #0d1422; --accent-soft: #23305a;
+  --ok: #6fd39c; --bad: #ff8f86; --bad-soft: #45201d; --warn: #f0b75c;
+  --f-display: "Chakra Petch", "Avenir Next Condensed", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); min-height: 100vh;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 40px; }
+.wrap { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font: 700 1.7rem/1 var(--f-display); margin: 0; letter-spacing: .01em; }
+header a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: .92rem; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font: 600 .74rem var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.game { font: 700 1.35rem/1.15 var(--f-display); margin: 0; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: .9rem; }
+.meta b { color: var(--ink); font-weight: 600; }
+.run { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, .btn { font: 600 1.02rem var(--f-body); border-radius: 10px; padding: 14px 16px; border: 1.5px solid var(--accent); cursor: pointer; min-height: 52px; width: 100%; text-align: center; text-decoration: none; display: block; }
+.primary { background: var(--accent); color: var(--accent-ink); }
+.secondary { background: transparent; color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .btn:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; color: var(--muted); }
+select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 44px; }
+.status { margin: 0; font-size: .92rem; color: var(--muted); min-height: 1.4em; }
+.status.bad { color: var(--bad); }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 35%; background: var(--accent); animation: indet 1.4s ease-in-out infinite; }
+@keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+.hint { color: var(--muted); font-size: .86rem; margin: 0; }
+.linkbtn { background: none; border: 0; color: var(--accent); font: 600 .9rem var(--f-body); padding: 6px 0; min-height: 0; width: auto; text-align: left; }
+.install { border-style: dashed; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>KaizoPatcher</h1>
+    <a href="index.html">Patcher</a>
+  </header>
+
+  <section class="card" id="empty" hidden>
+    <p class="eyebrow">No game yet</p>
+    <p class="game">Set up a game to play</p>
+    <p class="hint">Pick your game in the patcher, add a patch if you like, choose a randomizer preset, then tap <b>Play in browser</b>. It stays on this device.</p>
+    <a class="btn primary" href="index.html#step1">Set up a game</a>
+  </section>
+
+  <section class="card" id="main" hidden>
+    <p class="eyebrow">Current game</p>
+    <p class="game" id="gameName"></p>
+    <div class="meta">
+      <span>Preset <b id="presetName"></b></span>
+      <span>Run <b class="run" id="runNo"></b></span>
+    </div>
+    <div class="actions">
+      <button class="primary" id="continueBtn">Continue run</button>
+      <button class="secondary" id="newBtn">New run</button>
+    </div>
+    <div class="bar" id="bar" hidden><i></i></div>
+    <p class="status" id="status" aria-live="polite"></p>
+    <p class="hint">New run re-randomizes everything and starts a fresh save. The first one downloads the randomizer (about 20 MB) and can take a minute.</p>
+  </section>
+
+  <section class="card" id="settings" hidden>
+    <label class="field" for="presetSel"><span>Preset for new runs</span><select id="presetSel"></select></label>
+    <button class="linkbtn" id="logBtn" hidden>Save this run's spoiler log</button>
+    <a class="linkbtn" href="index.html#step1">Change game or patch</a>
+  </section>
+
+  <section class="card install" id="installTip" hidden>
+    <p class="eyebrow">Make it an app</p>
+    <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
+  </section>
+</div>
+<script src="kp-store.js"></script>
+<script src="kp-random.js"></script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  let setup = null, run = null, presets = {};
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  $('installTip').hidden = standalone;
+
+  try { setup = await KPStore.get('setup'); run = await KPStore.get('run'); } catch (e) { setup = null; }
+  if (!setup) { $('empty').hidden = false; return; }
+
+  $('main').hidden = false; $('settings').hidden = false;
+  $('gameName').textContent = setup.label;
+  const render = () => {
+    $('presetName').textContent = setup.presetName;
+    $('runNo').textContent = run ? '#' + run.id : 'none yet';
+    $('continueBtn').hidden = !run;
+    $('continueBtn').textContent = run ? 'Continue run #' + run.id : 'Continue run';
+    $('newBtn').className = run ? 'secondary' : 'primary';
+    $('newBtn').textContent = run ? 'New run' : 'Start first run';
+    $('logBtn').hidden = !(run && run.log);
+  };
+  render();
+
+  try { presets = await (await fetch('randomizer/presets.json')).json(); } catch (e) { presets = {}; }
+  const sel = $('presetSel');
+  for (const p of (presets[setup.fam] || [])) {
+    const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
+    if (p.file === setup.presetFile) o.selected = true; sel.append(o);
+  }
+  sel.addEventListener('change', async () => {
+    setup.presetFile = sel.value; setup.presetName = sel.selectedOptions[0].textContent;
+    await KPStore.set('setup', setup); render();
+  });
+
+  $('continueBtn').addEventListener('click', () => { location.href = 'game.html'; });
+
+  let armed = false, armTimer = null;
+  async function newRun() {
+    $('newBtn').disabled = true; $('continueBtn').disabled = true; $('bar').hidden = false; $('status').className = 'status';
+    try {
+      const out = await KPRandom.run(new Uint8Array(setup.rom), setup.ext, setup.presetFile, (t) => { $('status').textContent = t; });
+      $('status').textContent = 'Saving…';
+      const id = (setup.runs || 0) + 1;
+      const rec = { id, preset: setup.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
+      await KPStore.set('run', rec);
+      setup.runs = id; await KPStore.set('setup', setup);
+      location.href = 'game.html';
+    } catch (e) {
+      console.error(e);
+      $('status').className = 'status bad';
+      $('status').textContent = (e && e.message) || 'Couldn’t start a new run.';
+      $('newBtn').disabled = false; $('continueBtn').disabled = false; $('bar').hidden = true;
+    }
+  }
+  $('newBtn').addEventListener('click', () => {
+    if (!run || armed) { armed = false; clearTimeout(armTimer); newRun(); return; }
+    armed = true; $('newBtn').textContent = 'Tap again to end run #' + run.id;
+    armTimer = setTimeout(() => { armed = false; render(); }, 4000);
+  });
+  $('logBtn').addEventListener('click', () => {
+    if (!run || !run.log) return;
+    const url = URL.createObjectURL(new Blob([run.log], { type: 'text/plain' }));
+    const a = document.createElement('a'); a.href = url; a.download = setup.baseName + ' run ' + run.id + ' spoiler log.txt';
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  });
+
+  if (new URLSearchParams(location.search).get('new') === '1') {
+    history.replaceState(null, '', 'play.html');
+    newRun();
+  }
+})();
+</script>
+</body>
+</html>
