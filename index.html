@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KaizoPatcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column of three cartridge-slot steps, then the full patch list as a reference table. */
+:root {
+  --bg: #e9edf2;
+  --panel: #f8fafc;
+  --ink: #17202c;
+  --muted: #5a6575;
+  --line: #cdd4de;
+  --accent: #2a4fd6;
+  --accent-ink: #ffffff;
+  --accent-soft: #dfe6fb;
+  --ok: #1f7a4a;
+  --ok-soft: #dcefe4;
+  --warn: #9a5b00;
+  --warn-soft: #f6ead3;
+  --bad: #b3261e;
+  --bad-soft: #f8dedc;
+  --f-display: "Chakra Petch", "Avenir Next Condensed", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11161d; --panel: #1a212b; --ink: #e4e9f0; --muted: #98a3b3; --line: #2e3845;
+  --accent: #7d9bff; --accent-ink: #0d1422; --accent-soft: #23305a;
+  --ok: #6fd39c; --ok-soft: #173a29; --warn: #f0b75c; --warn-soft: #3d2f15; --bad: #ff8f86; --bad-soft: #45201d;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11161d; --panel: #1a212b; --ink: #e4e9f0; --muted: #98a3b3; --line: #2e3845;
+  --accent: #7d9bff; --accent-ink: #0d1422; --accent-soft: #23305a;
+  --ok: #6fd39c; --ok-soft: #173a29; --warn: #f0b75c; --warn-soft: #3d2f15; --bad: #ff8f86; --bad-soft: #45201d;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-inset-bottom,0px); }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header h1 { font: 700 2rem/1.05 var(--f-display); letter-spacing: .01em; margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 60ch; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.step[aria-disabled="true"] { opacity: .55; }
+.step h2 { font: 600 1.05rem/1.2 var(--f-display); letter-spacing: .04em; text-transform: uppercase; margin: 0; display: flex; gap: 10px; align-items: center; }
+.step h2 .n { font-family: var(--f-mono); font-size: .8rem; color: var(--accent); border: 1.5px solid var(--accent); border-radius: 4px; padding: 0 6px; }
+.hint { color: var(--muted); font-size: .88rem; margin: 0; }
+button, .filebtn { font: 600 .95rem var(--f-body); border-radius: 8px; padding: 11px 16px; border: 1.5px solid var(--accent); cursor: pointer; min-height: 44px; }
+.primary { background: var(--accent); color: var(--accent-ink); }
+.secondary, .filebtn { background: transparent; color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .filebtn:focus-within, input:focus-visible + .opt { outline: 3px solid var(--accent); outline-offset: 2px; }
+.filebtn { display: inline-flex; align-items: center; justify-content: center; align-self: flex-start; position: relative; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.romcard { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: .92rem; }
+.romcard dt { color: var(--muted); }
+.romcard dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: .88em; }
+.pill { display: inline-block; font: 600 .74rem var(--f-body); letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.note { border-radius: 8px; padding: 10px 12px; font-size: .9rem; margin: 0; }
+.note.warn { background: var(--warn-soft); color: var(--ink); border-left: 3px solid var(--warn); }
+.note.bad { background: var(--bad-soft); color: var(--ink); border-left: 3px solid var(--bad); }
+.note.ok { background: var(--ok-soft); color: var(--ink); border-left: 3px solid var(--ok); }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opts input { position: absolute; opacity: 0; pointer-events: none; }
+.opt { display: flex; flex-direction: column; gap: 2px; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.opts input:checked + .opt { border-color: var(--accent); background: var(--accent-soft); }
+.opt b { font-weight: 600; }
+.opt span { color: var(--muted); font-size: .86rem; }
+.opt .meta { font-family: var(--f-mono); font-size: .76rem; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; color: var(--muted); }
+select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--panel); border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 44px; }
+.bar i.indet { width: 35%; animation: indet 1.4s ease-in-out infinite; }
+@keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@media (prefers-reduced-motion: reduce) { .bar i.indet { animation: none; width: 100%; opacity: .5; } }
+footer a { color: var(--accent); }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+.status { font-size: .9rem; color: var(--muted); margin: 0; min-height: 1.5em; }
+ol.howto { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 4px; font-size: .92rem; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+th { text-align: left; font: 600 .74rem var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1.5px solid var(--line); }
+td { padding: 8px; min-width: 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td .sys { font-family: var(--f-mono); font-size: .78rem; color: var(--muted); white-space: nowrap; }
+tr.match td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+footer { color: var(--muted); font-size: .82rem; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>KaizoPatcher</h1>
+    <p>Applies 23 Kaizo, IronMON and speed-up patches to your own game files, right here in your browser, so you can play them in Delta. Nothing is uploaded; your ROM never leaves your phone.</p>
+  </header>
+
+  <section class="step" id="step1">
+    <h2><span class="n">1</span>Your game</h2>
+    <p class="hint">Pick an unpatched .gba, .gb, .gbc or .nds file from Files. US versions only.</p>
+    <label class="filebtn" id="romBtn">Choose ROM…<input type="file" id="romInput"></label>
+    <div id="romInfo" hidden></div>
+  </section>
+
+  <section class="step" id="step2" aria-disabled="true">
+    <h2><span class="n">2</span>Patch</h2>
+    <p class="hint" id="patchHint">Choose a game first. Patches that fit it will show here.</p>
+    <div class="opts" id="patchOpts" role="radiogroup" aria-label="Patch"></div>
+    <div id="ownPatchWrap" hidden>
+      <label class="filebtn">Choose patch file…<input type="file" id="ownPatchInput"></label>
+      <p class="hint" id="ownPatchName"></p>
+    </div>
+  </section>
+
+  <section class="step" id="step3" aria-disabled="true">
+    <h2><span class="n">3</span>Patch and save</h2>
+    <div class="row">
+      <button class="primary" id="goBtn" disabled>Patch game</button>
+    </div>
+    <div class="bar" id="bar" hidden><i id="barFill"></i></div>
+    <p class="status" id="status" aria-live="polite"></p>
+    <div id="result" hidden>
+      <div class="row">
+        <button class="primary" id="saveBtn">Save to Files</button>
+        <button class="secondary" id="againBtn">Patch the result again</button>
+      </div>
+      <p class="note warn" id="saveNote" hidden></p>
+      <ol class="howto">
+        <li>Tap <b>Save to Files</b>, then <b>Download</b>. The game lands in the Downloads folder of the Files app.</li>
+        <li>In Delta, tap <b>+</b>, choose <b>Files</b>, and pick the game.</li>
+        <li>DS games need your DS BIOS files added in Delta's settings first (Settings → Core Settings → melonDS).</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="step" id="step4" aria-disabled="true">
+    <h2><span class="n">4</span>Randomize</h2>
+    <p class="hint" id="randHint">Finish step 3 first. To randomize without patching, pick <b>No patch</b> in step 2.</p>
+    <div id="randBox" hidden>
+      <label class="field" for="presetSel"><span>Preset</span>
+        <select id="presetSel"></select>
+      </label>
+      <div class="row"><button class="primary" id="randBtn">Randomize</button></div>
+      <div class="bar" id="randBar" hidden><i class="indet"></i></div>
+      <p class="status" id="randStatus" aria-live="polite"></p>
+      <div id="randResult" hidden>
+        <div class="row">
+          <button class="primary" id="randSaveBtn">Save randomized game</button>
+          <button class="secondary" id="logBtn">Save spoiler log</button>
+        </div>
+        <p class="hint">Each tap of Randomize makes a new, different game. The spoiler log lists every change.</p>
+      </div>
+      <p class="hint">The first run downloads a Java runtime (about 20 MB) and can take a minute. DS games are large and may be too much for some phones.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <h2>All patches</h2>
+    <p class="hint">The Needs column is the exact copy of the game each patch was made for.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Patch</th><th>Needs</th></tr></thead>
+      <tbody id="catalog"></tbody>
+    </table></div>
+  </section>
+
+  <footer>Patch engines for IPS, UPS, BPS and xdelta run in this page. Randomizing uses <a href="https://github.com/Ajarmar/universal-pokemon-randomizer-zx">Universal Pokémon Randomizer ZX</a> 4.6.1 (GPLv3), run in your browser with <a href="https://cheerpj.com">CheerpJ</a>.</footer>
+</div>
+
+<script>
+// ROM patch engines: IPS, UPS, BPS, VCDIFF/xdelta3. No dependencies.
+const Engine = (() => {
+  class PatchError extends Error {
+    constructor(msg, code) { super(msg); this.code = code || 'patch'; }
+  }
+
+  // ---------- checksums ----------
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(u8, start = 0, end = u8.length, prev = 0) {
+    let c = (prev ^ 0xFFFFFFFF) >>> 0;
+    for (let i = start; i < end; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function adler32(u8) {
+    let a = 1, b = 0;
+    const n = u8.length;
+    let i = 0;
+    while (i < n) {
+      const end = Math.min(i + 3800, n);
+      for (; i < end; i++) { a += u8[i]; b += a; }
+      a %= 65521; b %= 65521;
+    }
+    return ((b << 16) | a) >>> 0;
+  }
+  const hex = (n) => (n >>> 0).toString(16).toUpperCase().padStart(8, '0');
+
+  function u32le(u8, o) { return (u8[o] | (u8[o + 1] << 8) | (u8[o + 2] << 16) | (u8[o + 3] << 24)) >>> 0; }
+
+  function detectFormat(p) {
+    if (p.length >= 5 && p[0] === 0x50 && p[1] === 0x41 && p[2] === 0x54 && p[3] === 0x43 && p[4] === 0x48) return 'ips';
+    if (p.length >= 4 && p[0] === 0x55 && p[1] === 0x50 && p[2] === 0x53 && p[3] === 0x31) return 'ups';
+    if (p.length >= 4 && p[0] === 0x42 && p[1] === 0x50 && p[2] === 0x53 && p[3] === 0x31) return 'bps';
+    if (p.length >= 4 && p[0] === 0xD6 && p[1] === 0xC3 && p[2] === 0xC4 && p[3] === 0x00) return 'xdelta';
+    return null;
+  }
+
+  // ---------- IPS ----------
+  function applyIPS(src, p) {
+    let i = 5;
+    const recs = [];
+    let size = src.length, truncate = -1;
+    while (true) {
+      if (i + 3 > p.length) throw new PatchError('This IPS patch is cut short.', 'corrupt');
+      const off = (p[i] << 16) | (p[i + 1] << 8) | p[i + 2];
+      i += 3;
+      if (off === 0x454F46) {
+        if (i + 3 <= p.length) truncate = (p[i] << 16) | (p[i + 1] << 8) | p[i + 2];
+        break;
+      }
+      if (i + 2 > p.length) throw new PatchError('This IPS patch is cut short.', 'corrupt');
+      let len = (p[i] << 8) | p[i + 1];
+      i += 2;
+      if (len === 0) {
+        const rl = (p[i] << 8) | p[i + 1];
+        recs.push({ off, rle: true, len: rl, val: p[i + 2] });
+        i += 3;
+        size = Math.max(size, off + rl);
+      } else {
+        if (i + len > p.length) throw new PatchError('This IPS patch is cut short.', 'corrupt');
+        recs.push({ off, rle: false, len, at: i });
+        i += len;
+        size = Math.max(size, off + len);
+      }
+    }
+    const out = new Uint8Array(truncate >= 0 ? truncate : size);
+    out.set(src.subarray(0, Math.min(src.length, out.length)));
+    for (const r of recs) {
+      if (r.off >= out.length) continue;
+      if (r.rle) out.fill(r.val, r.off, Math.min(out.length, r.off + r.len));
+      else out.set(p.subarray(r.at, r.at + Math.min(r.len, out.length - r.off)), r.off);
+    }
+    return out;
+  }
+
+  // byuu-style varint used by UPS and BPS
+  function readBeat(p, st) {
+    let data = 0, shift = 1;
+    while (true) {
+      if (st.i >= p.length) throw new PatchError('This patch is cut short.', 'corrupt');
+      const x = p[st.i++];
+      data += (x & 0x7F) * shift;
+      if (x & 0x80) break;
+      shift *= 128;
+      data += shift;
+    }
+    return data;
+  }
+
+  function checkFooter(p, src, kind, opts) {
+    const srcCrc = u32le(p, p.length - 12), tgtCrc = u32le(p, p.length - 8), patchCrc = u32le(p, p.length - 4);
+    if (crc32(p, 0, p.length - 4) !== patchCrc) throw new PatchError(`This ${kind} file is damaged (its own checksum doesn't match).`, 'corrupt');
+    if (!opts.skipSourceCheck) {
+      const c = crc32(src);
+      if (c !== srcCrc) throw new PatchError(`This patch needs a different ROM. It expects a ROM with CRC32 ${hex(srcCrc)}; yours is ${hex(c)}.`, 'wrongsource');
+    }
+    return tgtCrc;
+  }
+
+  // ---------- UPS ----------
+  function applyUPS(src, p, opts = {}) {
+    const st = { i: 4 };
+    const srcSize = readBeat(p, st), tgtSize = readBeat(p, st);
+    const tgtCrc = checkFooter(p, src, 'UPS', opts);
+    if (!opts.skipSourceCheck && src.length !== srcSize) throw new PatchError('The ROM is the wrong size for this patch.', 'wrongsource');
+    const out = new Uint8Array(tgtSize);
+    out.set(src.subarray(0, Math.min(src.length, tgtSize)));
+    const end = p.length - 12;
+    let pos = 0;
+    while (st.i < end) {
+      pos += readBeat(p, st);
+      while (true) {
+        if (st.i >= end) throw new PatchError('This UPS patch is cut short.', 'corrupt');
+        const b = p[st.i++];
+        if (pos < tgtSize) out[pos] ^= b;
+        pos++;
+        if (b === 0) break;
+      }
+    }
+    if (!opts.skipTargetCheck && crc32(out) !== tgtCrc) throw new PatchError('Patched, but the result failed its checksum.', 'outputmismatch');
+    return out;
+  }
+
+  // ---------- BPS ----------
+  function applyBPS(src, p, opts = {}) {
+    const st = { i: 4 };
+    const srcSize = readBeat(p, st), tgtSize = readBeat(p, st), metaSize = readBeat(p, st);
+    st.i += metaSize;
+    const tgtCrc = checkFooter(p, src, 'BPS', opts);
+    if (!opts.skipSourceCheck && src.length !== srcSize) throw new PatchError('The ROM is the wrong size for this patch.', 'wrongsource');
+    const out = new Uint8Array(tgtSize);
+    const end = p.length - 12;
+    let o = 0, srcRel = 0, tgtRel = 0;
+    while (st.i < end) {
+      const data = readBeat(p, st);
+      const cmd = data % 4;
+      const len = Math.floor(data / 4) + 1;
+      if (o + len > tgtSize) throw new PatchError('This BPS patch writes past the end of the game.', 'corrupt');
+      if (cmd === 0) {
+        for (let k = 0; k < len; k++) { out[o] = o < src.length ? src[o] : 0; o++; }
+      } else if (cmd === 1) {
+        out.set(p.subarray(st.i, st.i + len), o);
+        st.i += len; o += len;
+      } else {
+        const d = readBeat(p, st);
+        const delta = (d % 2 ? -1 : 1) * Math.floor(d / 2);
+        if (cmd === 2) {
+          srcRel += delta;
+          if (srcRel < 0 || srcRel + len > src.length) throw new PatchError('This BPS patch reads outside the ROM.', 'wrongsource');
+          out.set(src.subarray(srcRel, srcRel + len), o);
+          srcRel += len; o += len;
+        } else {
+          tgtRel += delta;
+          if (tgtRel < 0 || tgtRel >= o) throw new PatchError('This BPS patch is damaged.', 'corrupt');
+          for (let k = 0; k < len; k++) out[o++] = out[tgtRel++];
+        }
+      }
+    }
+    if (o !== tgtSize) throw new PatchError('This BPS patch ended early.', 'corrupt');
+    if (!opts.skipTargetCheck && crc32(out) !== tgtCrc) throw new PatchError('Patched, but the result failed its checksum.', 'outputmismatch');
+    return out;
+  }
+
+  // ---------- VCDIFF / xdelta3 ----------
+  // Default code table (RFC 3284 §5.6). Each entry: [type1,size1,mode1,type2,size2,mode2]
+  const NOOP = 0, ADD = 1, RUN = 2, COPY = 3;
+  const CODE_TABLE = (() => {
+    const t = [];
+    t.push([RUN, 0, 0, NOOP, 0, 0]);
+    for (let s = 0; s <= 17; s++) t.push([ADD, s, 0, NOOP, 0, 0]);
+    for (let m = 0; m <= 8; m++) {
+      t.push([COPY, 0, m, NOOP, 0, 0]);
+      for (let s = 4; s <= 18; s++) t.push([COPY, s, m, NOOP, 0, 0]);
+    }
+    for (let m = 0; m <= 5; m++)
+      for (let a = 1; a <= 4; a++)
+        for (let c = 4; c <= 6; c++) t.push([ADD, a, 0, COPY, c, m]);
+    for (let m = 6; m <= 8; m++)
+      for (let a = 1; a <= 4; a++) t.push([ADD, a, 0, COPY, 4, m]);
+    for (let m = 0; m <= 8; m++) t.push([COPY, 4, m, ADD, 1, 0]);
+    if (t.length !== 256) throw new Error('code table');
+    return t;
+  })();
+
+  function readVar(p, st, limit) {
+    let v = 0;
+    for (let n = 0; n < 10; n++) {
+      if (st.i >= limit) throw new PatchError('This xdelta patch is cut short.', 'corrupt');
+      const x = p[st.i++];
+      v = v * 128 + (x & 0x7F);
+      if (!(x & 0x80)) return v;
+    }
+    throw new PatchError('This xdelta patch is damaged.', 'corrupt');
+  }
+
+  // readSource(pos, len) -> Promise<Uint8Array>; readTarget(pos,len) -> Promise<Uint8Array> (data already output)
+  // onWindow(u8) receives each finished target window in order. Returns {windows, adlerChecked, adlerFailed}.
+  async function applyXdelta(p, io, opts = {}) {
+    const st = { i: 4 };
+    const hdr = p[st.i++];
+    if (hdr & 1) throw new PatchError('This xdelta patch uses secondary compression, which this page does not support. Try RomPatcher.js.', 'unsupported');
+    if (hdr & 2) throw new PatchError('This xdelta patch uses a custom code table, which this page does not support.', 'unsupported');
+    if (hdr & 4) { const n = readVar(p, st, p.length); st.i += n; }
+    let total = 0, windows = 0, adlerChecked = 0, adlerFailed = 0;
+    const near = new Array(4), same = new Array(768);
+    while (st.i < p.length) {
+      const winInd = p[st.i++];
+      let segLen = 0, segPos = 0, seg = null;
+      if (winInd & 3) {
+        segLen = readVar(p, st, p.length);
+        segPos = readVar(p, st, p.length);
+      }
+      const encLen = readVar(p, st, p.length);
+      const encEnd = st.i + encLen;
+      if (encEnd > p.length) throw new PatchError('This xdelta patch is cut short.', 'corrupt');
+      const tgtLen = readVar(p, st, encEnd);
+      const deltaInd = p[st.i++];
+      if (deltaInd !== 0) throw new PatchError('This xdelta patch uses compressed sections, which this page does not support.', 'unsupported');
+      const dataLen = readVar(p, st, encEnd), instLen = readVar(p, st, encEnd), addrLen = readVar(p, st, encEnd);
+      let adler = null;
+      if (winInd & 4) {
+        adler = ((p[st.i] << 24) | (p[st.i + 1] << 16) | (p[st.i + 2] << 8) | p[st.i + 3]) >>> 0;
+        st.i += 4;
+      }
+      const dataStart = st.i, instStart = dataStart + dataLen, addrStart = instStart + instLen, secEnd = addrStart + addrLen;
+      if (secEnd !== encEnd) throw new PatchError('This xdelta patch is damaged.', 'corrupt');
+
+      if (winInd & 1) seg = await io.readSource(segPos, segLen);
+      else if (winInd & 2) seg = await io.readTarget(segPos, segLen);
+      if (seg && seg.length < segLen) {
+        if (!opts.allowShortSource) throw new PatchError('Your ROM is smaller than this patch expects. It may be a trimmed dump; this patch needs an untrimmed ROM.', 'wrongsource');
+        const s2 = new Uint8Array(segLen); s2.set(seg); seg = s2;
+      }
+
+      const out = new Uint8Array(tgtLen);
+      let o = 0, d = dataStart;
+      const ist = { i: instStart }, ast = { i: addrStart };
+      near.fill(0); same.fill(0);
+      let nextNear = 0;
+
+      const doInst = (type, size, mode) => {
+        if (size === 0) size = readVar(p, ist, addrStart);
+        if (o + size > tgtLen) throw new PatchError('This xdelta patch writes past the end of a block.', 'corrupt');
+        if (type === ADD) {
+          if (d + size > instStart) throw new PatchError('This xdelta patch is damaged.', 'corrupt');
+          out.set(p.subarray(d, d + size), o); d += size; o += size;
+        } else if (type === RUN) {
+          out.fill(p[d++], o, o + size); o += size;
+        } else {
+          const here = segLen + o;
+          let addr;
+          if (mode === 0) addr = readVar(p, ast, secEnd);
+          else if (mode === 1) addr = here - readVar(p, ast, secEnd);
+          else if (mode < 6) addr = near[mode - 2] + readVar(p, ast, secEnd);
+          else { if (ast.i >= secEnd) throw new PatchError('This xdelta patch is damaged.', 'corrupt'); addr = same[(mode - 6) * 256 + p[ast.i++]]; }
+          near[nextNear] = addr; nextNear = (nextNear + 1) & 3;
+          same[addr % 768] = addr;
+          if (addr < 0 || addr >= here) throw new PatchError('This xdelta patch is damaged (bad copy address).', 'corrupt');
+          if (addr < segLen) {
+            const fromSeg = Math.min(size, segLen - addr);
+            out.set(seg.subarray(addr, addr + fromSeg), o);
+            o += fromSeg;
+            let t = 0;
+            for (let k = fromSeg; k < size; k++) out[o++] = out[t++];
+          } else {
+            let t = addr - segLen;
+            if (t + size <= o) { out.copyWithin(o, t, t + size); o += size; }
+            else for (let k = 0; k < size; k++) out[o++] = out[t++];
+          }
+        }
+      };
+
+      while (ist.i < addrStart) {
+        const e = CODE_TABLE[p[ist.i++]];
+        if (e[0] !== NOOP) doInst(e[0], e[1], e[2]);
+        if (e[3] !== NOOP) doInst(e[3], e[4], e[5]);
+      }
+      if (o !== tgtLen || d !== instStart || ast.i !== secEnd) throw new PatchError('This xdelta patch is damaged (block does not add up).', 'corrupt');
+      if (adler !== null && !opts.skipAdler) {
+        adlerChecked++;
+        if (adler32(out) !== adler) {
+          adlerFailed++;
+          if (!opts.continueOnAdler) throw new PatchError(windows === 0
+            ? "This patch doesn't match your ROM. Make sure it's the right game and region, and that it hasn't been patched before."
+            : 'The patched game failed its checksum partway through. Your ROM is probably a different revision or was modified.', 'wrongsource');
+        }
+      }
+      st.i = encEnd;
+      total += tgtLen; windows++;
+      await io.onWindow(out, total, st.i / p.length);
+    }
+    return { windows, total, adlerChecked, adlerFailed };
+  }
+
+  return { PatchError, crc32, adler32, hex, detectFormat, applyIPS, applyUPS, applyBPS, applyXdelta, readBeat };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+
+</script>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+const MB = 1048576;
+
+// Known clean dumps. CRC32 for cartridge games; header code for DS.
+const ROMS = {
+  fr10: { name: 'FireRed (US) v1.0', sys: 'GBA', crc: 'DD88761C', code: 'BPRE', ver: 0 },
+  fr11: { name: 'FireRed (US) v1.1', sys: 'GBA', crc: '84EE4776', code: 'BPRE', ver: 1 },
+  lg10: { name: 'LeafGreen (US) v1.0', sys: 'GBA', crc: 'D69C96CC', code: 'BPGE', ver: 0 },
+  lg11: { name: 'LeafGreen (US) v1.1', sys: 'GBA', crc: 'DAFFECEC', code: 'BPGE', ver: 1 },
+  em: { name: 'Emerald (US)', sys: 'GBA', crc: '1F1C08FB', code: 'BPEE', ver: 0 },
+  hns: { name: 'Heart & Soul v2.0.6', sys: 'GBA', crc: '01713508' },
+  red: { name: 'Red (US)', sys: 'GB', crc: '9F7FDD53' },
+  blue: { name: 'Blue (US)', sys: 'GB', crc: 'D6DA8A1A' },
+  yellow: { name: 'Yellow (US)', sys: 'GB', crc: '7D527D62' },
+  gold: { name: 'Gold (US)', sys: 'GBC', crc: '6BDE3C3E' },
+  silver: { name: 'Silver (US)', sys: 'GBC', crc: '8AD48636' },
+  crystal: { name: 'Crystal (US) v1.0', sys: 'GBC', crc: 'EE6F5188' },
+  plat: { name: 'Platinum (US)', sys: 'NDS', code: 'CPUE' },
+  hg: { name: 'HeartGold (US)', sys: 'NDS', code: 'IPKE' },
+  b2: { name: 'Black 2 (US)', sys: 'NDS', code: 'IREO' },
+  w2: { name: 'White 2 (US)', sys: 'NDS', code: 'IRDO' },
+};
+const OTHER_CODES = { IPGE: 'SoulSilver (US)', ADAE: 'Diamond (US)', APAE: 'Pearl (US)', IRBO: 'Black (US)', IRAO: 'White (US)', AXVE: 'Ruby (US)', AXPE: 'Sapphire (US)' };
+
+const P = (file, _b, size, name, blurb, needs, ext) => ({ file, parts: MANIFEST[file].parts, dl: MANIFEST[file].b64size, size, name, blurb, needs, ext });
+const MANIFEST = {"faster-black2-u.xdelta": {"parts": ["patches/faster-black2-u.0.bin"], "b64size": 4237819}, "faster-emerald-u.ups": {"parts": ["patches/faster-emerald-u.0.bin"], "b64size": 355756}, "faster-firered-u-v11.ips": {"parts": ["patches/faster-firered-u-v11.0.bin"], "b64size": 218467}, "faster-white2-u.xdelta": {"parts": ["patches/faster-white2-u.0.bin"], "b64size": 4234640}, "faster121-emerald-u.ips": {"parts": ["patches/faster121-emerald-u.0.bin"], "b64size": 25536}, "fasterpwt-black2-u.xdelta": {"parts": ["patches/fasterpwt-black2-u.0.bin"], "b64size": 4237816}, "fasterpwt-white2-u.xdelta": {"parts": ["patches/fasterpwt-white2-u.0.bin"], "b64size": 4234637}, "hns-kaizo-heartsoul-206.bps": {"parts": ["patches/hns-kaizo-heartsoul-206.0.bin"], "b64size": 1886427}, "ironmon-heartgold-u.xdelta": {"parts": ["patches/ironmon-heartgold-u.0.bin"], "b64size": 10246644}, "maxdex-firered-u-v11.bps": {"parts": ["patches/maxdex-firered-u-v11.0.bin", "patches/maxdex-firered-u-v11.1.bin"], "b64size": 25761384}, "natdex-emerald.bps": {"parts": ["patches/natdex-emerald.0.bin", "patches/natdex-emerald.1.bin"], "b64size": 27395992}, "natdex-firered.bps": {"parts": ["patches/natdex-firered.0.bin", "patches/natdex-firered.1.bin"], "b64size": 26022668}, "pseudofluct-blue-u.bps": {"parts": ["patches/pseudofluct-blue-u.0.bin"], "b64size": 40}, "pseudofluct-crystal-u.bps": {"parts": ["patches/pseudofluct-crystal-u.0.bin"], "b64size": 52}, "pseudofluct-gold-u.bps": {"parts": ["patches/pseudofluct-gold-u.0.bin"], "b64size": 56}, "pseudofluct-red-u.bps": {"parts": ["patches/pseudofluct-red-u.0.bin"], "b64size": 40}, "pseudofluct-silver-u.bps": {"parts": ["patches/pseudofluct-silver-u.0.bin"], "b64size": 56}, "pseudofluct-yellow-u.bps": {"parts": ["patches/pseudofluct-yellow-u.0.bin"], "b64size": 40}, "smartai-emerald-u.ips": {"parts": ["patches/smartai-emerald-u.0.bin"], "b64size": 4100}, "smartai-firered-u-v10.ips": {"parts": ["patches/smartai-firered-u-v10.0.bin"], "b64size": 11969}, "smartai-leafgreen-u.ips": {"parts": ["patches/smartai-leafgreen-u.0.bin"], "b64size": 11969}, "superkaizo-heartgold-u.xdelta": {"parts": ["patches/superkaizo-heartgold-u.0.bin"], "b64size": 10253916}, "superkaizo-platinum-u.xdelta": {"parts": ["patches/superkaizo-platinum-u.0.bin", "patches/superkaizo-platinum-u.1.bin"], "b64size": 22894434}};
+const parts1 = (b) => b, parts2 = parts1;
+const PATCHES = [
+  P('superkaizo-platinum-u.xdelta', parts2('superkaizo-platinum-u'), 22894434, 'Super Kaizo Platinum', 'The hardest-difficulty Platinum hack used for Kaizo IronMON.', ['plat'], 'nds'),
+  P('superkaizo-heartgold-u.xdelta', parts1('superkaizo-heartgold-u'), 10253916, 'Super Kaizo HeartGold', 'Kaizo-difficulty HeartGold.', ['hg'], 'nds'),
+  P('ironmon-heartgold-u.xdelta', parts1('ironmon-heartgold-u'), 10246644, 'IronMON HeartGold', 'The HeartGold base used for IronMON runs.', ['hg'], 'nds'),
+  P('faster-black2-u.xdelta', parts1('faster-black2-u'), 4237819, 'Faster Black 2', 'Speed and quality-of-life fixes (SilverstarStream).', ['b2'], 'nds'),
+  P('fasterpwt-black2-u.xdelta', parts1('fasterpwt-black2-u'), 4237816, 'Faster Black 2, skip PWT', 'Faster Black 2 that also skips the Pokémon World Tournament.', ['b2'], 'nds'),
+  P('faster-white2-u.xdelta', parts1('faster-white2-u'), 4234640, 'Faster White 2', 'Speed and quality-of-life fixes (SilverstarStream).', ['w2'], 'nds'),
+  P('fasterpwt-white2-u.xdelta', parts1('fasterpwt-white2-u'), 4234637, 'Faster White 2, skip PWT', 'Faster White 2 that also skips the Pokémon World Tournament.', ['w2'], 'nds'),
+  P('natdex-firered.bps', parts2('natdex-firered'), 26022668, 'FireRed Nat. Dex', 'National Dex Extension 1.2.1 by CyanSMP64: adds Pokémon from later generations.', ['fr11'], 'gba'),
+  P('maxdex-firered-u-v11.bps', parts2('maxdex-firered-u-v11'), 25761384, 'FireRed MaxDex', 'Nat. Dex with moves and abilities up to Gen 9 (Tripc423).', ['fr11'], 'gba'),
+  P('faster-firered-u-v11.ips', parts1('faster-firered-u-v11'), 218467, 'Faster FireRed', 'Speed and quality-of-life fixes (DrMaple).', ['fr11'], 'gba'),
+  P('smartai-firered-u-v10.ips', parts1('smartai-firered-u-v10'), 11969, 'FireRed smart AI', 'Trainers make smarter move choices.', ['fr10'], 'gba'),
+  P('smartai-leafgreen-u.ips', parts1('smartai-leafgreen-u'), 11969, 'LeafGreen smart AI', 'Trainers make smarter move choices. Same layout as the FireRed 1.0 patch, so it most likely expects LeafGreen 1.0.', ['lg10'], 'gba'),
+  P('natdex-emerald.bps', parts2('natdex-emerald'), 27395992, 'Emerald Nat. Dex', 'National Dex Extension 1.2.1 by CyanSMP64.', ['em'], 'gba'),
+  P('faster-emerald-u.ups', parts1('faster-emerald-u'), 355756, 'Faster Emerald', 'Speed and quality-of-life fixes (DrMaple).', ['em'], 'gba'),
+  P('faster121-emerald-u.ips', parts1('faster121-emerald-u'), 25536, 'Faster Emerald 1.2.1', 'The newer Faster Emerald release.', ['em'], 'gba'),
+  P('smartai-emerald-u.ips', parts1('smartai-emerald-u'), 4100, 'Emerald smart AI', 'Trainers make smarter move choices.', ['em'], 'gba'),
+  P('hns-kaizo-heartsoul-206.bps', parts1('hns-kaizo-heartsoul-206'), 1886427, 'Heart & Soul Kaizo', 'Kaizo version of Heart & Soul. First make HnS 2.0.6 from FireRed 1.1 with the team’s pokemonHnS_v2.0.6.ups (use "Your own patch file"), then patch that result again with this.', ['hns'], 'gba'),
+  P('pseudofluct-red-u.bps', parts1('pseudofluct-red-u'), 40, 'Red tweak (pseudofluct)', 'A tiny tweak used in Gen 1 Kaizo runs.', ['red'], 'gb'),
+  P('pseudofluct-blue-u.bps', parts1('pseudofluct-blue-u'), 40, 'Blue tweak (pseudofluct)', 'A tiny tweak used in Gen 1 Kaizo runs.', ['blue'], 'gb'),
+  P('pseudofluct-yellow-u.bps', parts1('pseudofluct-yellow-u'), 40, 'Yellow tweak (pseudofluct)', 'A tiny tweak used in Gen 1 Kaizo runs.', ['yellow'], 'gbc'),
+  P('pseudofluct-gold-u.bps', parts1('pseudofluct-gold-u'), 56, 'Gold tweak (pseudofluct)', 'A tiny tweak used in Gen 2 Kaizo runs.', ['gold'], 'gbc'),
+  P('pseudofluct-silver-u.bps', parts1('pseudofluct-silver-u'), 56, 'Silver tweak (pseudofluct)', 'A tiny tweak used in Gen 2 Kaizo runs.', ['silver'], 'gbc'),
+  P('pseudofluct-crystal-u.bps', parts1('pseudofluct-crystal-u'), 52, 'Crystal tweak (pseudofluct)', 'A tiny tweak used in Gen 2 Kaizo runs.', ['crystal'], 'gbc'),
+];
+const NONE = { none: true, name: 'No patch', blurb: 'Keep the game as it is. Pick this to randomize it without patching.' };
+const OWN = { own: true, name: 'Your own patch file', blurb: 'Any .ips, .ups, .bps or .xdelta, such as a romhack from its own release page.' };
+
+const fmtSize = (n) => n >= MB ? (n / MB).toFixed(n >= 100 * MB ? 0 : 1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const el = (tag, attrs = {}, kids = []) => { const e = document.createElement(tag); for (const k in attrs) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); } for (const c of [].concat(kids)) if (c) e.append(c); return e; };
+
+// ---------- catalog table ----------
+function renderCatalog(matchIds) {
+  const tb = $('catalog'); tb.replaceChildren();
+  for (const p of PATCHES) {
+    const r = ROMS[p.needs[0]];
+    const tr = el('tr', matchIds && p.needs.some((n) => matchIds.includes(n)) ? { class: 'match' } : {}, [
+      el('td', {}, [el('b', { text: p.name }), el('br'), el('span', { class: 'hint', text: p.blurb })]),
+      el('td', {}, [document.createTextNode(p.needs.map((n) => ROMS[n].name).join(', ')), el('br'), el('span', { class: 'sys', text: r.sys + ' · ' + fmtSize(p.size) })]),
+    ]);
+    tb.append(tr);
+  }
+}
+renderCatalog(null);
+
+// ---------- ROM identification ----------
+const PRESETS = {"B2W2": [{"file": "B2W2_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "B2W2_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "B2W2_Kaizo.rnqs", "name": "Kaizo"}, {"file": "B2W2_Standard.rnqs", "name": "Standard"}, {"file": "B2W2_Survival.rnqs", "name": "Survival"}, {"file": "B2W2_Ultimate.rnqs", "name": "Ultimate"}], "BW": [{"file": "BW_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "BW_Kaizo.rnqs", "name": "Kaizo"}, {"file": "BW_Standard.rnqs", "name": "Standard"}, {"file": "BW_Survival.rnqs", "name": "Survival"}, {"file": "BW_Ultimate.rnqs", "name": "Ultimate"}], "DPPt": [{"file": "DPPt_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "DPPt_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "DPPt_Kaizo.rnqs", "name": "Kaizo"}, {"file": "DPPt_Standard.rnqs", "name": "Standard"}, {"file": "DPPt_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "DPPt_Survival.rnqs", "name": "Survival"}, {"file": "DPPt_Ultimate.rnqs", "name": "Ultimate"}], "FRLG": [{"file": "FRLG_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "FRLG_Evo_Kaizo.rnqs", "name": "Evo Kaizo"}, {"file": "FRLG_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "FRLG_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "FRLG_Kaizo.rnqs", "name": "Kaizo"}, {"file": "FRLG_Standard.rnqs", "name": "Standard"}, {"file": "FRLG_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "FRLG_Survival_Revival.rnqs", "name": "Survival Revival"}, {"file": "FRLG_Survival.rnqs", "name": "Survival"}, {"file": "FRLG_Ultimate.rnqs", "name": "Ultimate"}], "GSC": [{"file": "GSC_Kaizo.rnqs", "name": "Kaizo"}, {"file": "GSC_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "GSC_Standard.rnqs", "name": "Standard"}, {"file": "GSC_Survival.rnqs", "name": "Survival"}, {"file": "GSC_Ultimate.rnqs", "name": "Ultimate"}], "HGSS": [{"file": "HGSS_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "HGSS_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "HGSS_Kaizo.rnqs", "name": "Kaizo"}, {"file": "HGSS_Standard.rnqs", "name": "Standard"}, {"file": "HGSS_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "HGSS_Survival.rnqs", "name": "Survival"}, {"file": "HGSS_Ultimate.rnqs", "name": "Ultimate"}], "RBY": [{"file": "RBY_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RBY_PART_2.rnqs", "name": "PART 2"}, {"file": "RBY_Standard.rnqs", "name": "Standard"}, {"file": "RBY_Survival.rnqs", "name": "Survival"}, {"file": "RBY_Ultimate.rnqs", "name": "Ultimate"}], "RSE": [{"file": "RSE_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "RSE_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "RSE_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "RSE_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RSE_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "RSE_Standard.rnqs", "name": "Standard"}, {"file": "RSE_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "RSE_Survival.rnqs", "name": "Survival"}, {"file": "RSE_Ultimate.rnqs", "name": "Ultimate"}]};
+const FAMILY = { fr10: 'FRLG', fr11: 'FRLG', lg10: 'FRLG', lg11: 'FRLG', em: 'RSE', red: 'RBY', blue: 'RBY', yellow: 'RBY', gold: 'GSC', silver: 'GSC', crystal: 'GSC', plat: 'DPPt', hg: 'HGSS', b2: 'B2W2', w2: 'B2W2' };
+const state = { rom: null, romName: '', ident: null, patch: null, ownPatch: null, result: null, resultName: '' };
+
+async function readHead(blob, n) { return new Uint8Array(await blob.slice(0, n).arrayBuffer()); }
+const ascii = (u8, a, b) => String.fromCharCode(...u8.subarray(a, b)).replace(/\0+$/, '');
+
+async function identify(blob) {
+  const h = await readHead(blob, 0x200);
+  if (h[0] === 0x50 && h[1] === 0x4B && h[2] === 0x03 && h[3] === 0x04) return { error: 'This is a .zip file. Tap it in the Files app to unzip it, then pick the game file inside.' };
+  if (blob.size < 0x150) return { error: 'This file is too small to be a game.' };
+  let sys = null;
+  if (h[0xB2] === 0x96 && blob.size >= 1 * MB) sys = 'GBA';
+  else if (h[0x104] === 0xCE && h[0x105] === 0xED && h[0x106] === 0x66 && h[0x107] === 0x66) sys = (h[0x143] & 0x80) ? 'GBC' : 'GB';
+  else if (/^[A-Z0-9]{4}$/.test(ascii(h, 0x0C, 0x10)) && blob.size >= 8 * MB) sys = 'NDS';
+  if (!sys) return { error: "This doesn't look like a Game Boy, GBA or DS game." };
+  const out = { sys, size: blob.size, ids: [], verified: false };
+  if (sys === 'NDS') {
+    out.code = ascii(h, 0x0C, 0x10); out.title = ascii(h, 0, 12); out.rev = h[0x1E];
+    for (const id in ROMS) if (ROMS[id].code === out.code && ROMS[id].sys === 'NDS') out.ids.push(id);
+    out.label = out.ids.length ? ROMS[out.ids[0]].name : (OTHER_CODES[out.code] || out.title || 'Unknown DS game');
+    out.verified = out.ids.length > 0; // checked block by block while patching
+    return out;
+  }
+  const all = new Uint8Array(await blob.arrayBuffer());
+  out.crc = Engine.hex(Engine.crc32(all));
+  if (sys === 'GBA') { out.code = ascii(h, 0xAC, 0xB0); out.title = ascii(h, 0xA0, 0xAC); out.rev = h[0xBC]; }
+  else { out.title = ascii(h, 0x134, 0x143).replace(/[^\x20-\x7E]/g, ''); }
+  for (const id in ROMS) if (ROMS[id].crc === out.crc) out.ids.push(id);
+  if (out.ids.length) { out.verified = true; out.label = ROMS[out.ids[0]].name; return out; }
+  // Header looks right but checksum doesn't: probably modified or a different dump.
+  for (const id in ROMS) if (ROMS[id].code && ROMS[id].code === out.code && ROMS[id].ver === out.rev) out.ids.push(id);
+  out.label = out.ids.length ? ROMS[out.ids[0]].name : (out.title || 'Unknown game');
+  return out;
+}
+
+function showRom(id) {
+  const box = $('romInfo'); box.hidden = false; box.replaceChildren();
+  if (id.error) { box.append(el('p', { class: 'note bad', text: id.error })); return; }
+  let pill;
+  if (id.verified && id.sys === 'NDS') pill = el('span', { class: 'pill ok', text: 'Recognized' });
+  else if (id.verified) pill = el('span', { class: 'pill ok', text: 'Clean copy' });
+  else if (id.ids.length) pill = el('span', { class: 'pill warn', text: 'Modified?' });
+  else pill = el('span', { class: 'pill bad', text: 'No built-in patch' });
+  const dl = el('dl', { class: 'romcard' }, [
+    el('dt', { text: 'Game' }), el('dd', {}, [document.createTextNode(id.label + ' '), pill]),
+    el('dt', { text: 'File' }), el('dd', { text: state.romName + ' · ' + fmtSize(id.size) }),
+    el('dt', { text: id.crc ? 'CRC32' : 'Game code' }), el('dd', { class: 'mono', text: id.crc ? id.crc : id.code + ' rev ' + id.rev }),
+  ]);
+  box.append(dl);
+  if (!id.verified && id.ids.length) box.append(el('p', { class: 'note warn', text: 'The header says ' + id.label + ', but the checksum doesn’t match a clean copy. It may already be patched or randomized. Patches with a built-in check will refuse it; others may produce a broken game.' }));
+  if (!id.ids.length) box.append(el('p', { class: 'note warn', text: 'None of the built-in patches are for this game. You can still apply your own patch file.' }));
+}
+
+function renderPatchOpts() {
+  const id = state.ident, box = $('patchOpts'); box.replaceChildren();
+  const ok = id && !id.error;
+  $('step2').setAttribute('aria-disabled', ok ? 'false' : 'true');
+  if (!ok) { $('patchHint').textContent = 'Choose a game first. Patches that fit it will show here.'; $('ownPatchWrap').hidden = true; return; }
+  const list = PATCHES.filter((p) => p.needs.some((n) => id.ids.includes(n)));
+  $('patchHint').textContent = list.length ? 'Patches made for this game:' : 'No bundled patch fits this game.';
+  [NONE, ...list, OWN].forEach((p, i) => {
+    const rid = 'patch-' + i;
+    const input = el('input', { type: 'radio', name: 'patch', id: rid });
+    input.addEventListener('change', () => { state.patch = p; $('ownPatchWrap').hidden = !p.own; updateGo(); });
+    const lab = el('label', { class: 'opt', for: rid }, [
+      el('b', { text: p.name }), el('span', { text: p.blurb }),
+      (p.own || p.none) ? null : el('span', { class: 'meta', text: p.file + ' · ' + fmtSize(p.size) }),
+    ]);
+    box.append(input, lab);
+  });
+  state.patch = null; $('ownPatchWrap').hidden = true; updateGo();
+  renderCatalog(id.ids);
+}
+
+function updateGo() {
+  const ready = state.rom && state.ident && !state.ident.error && state.patch && (!state.patch.own || state.ownPatch);
+  $('goBtn').textContent = state.patch && state.patch.none ? 'Use this game' : 'Patch game';
+  $('goBtn').disabled = !ready;
+  $('step3').setAttribute('aria-disabled', ready || state.result ? 'false' : 'true');
+}
+
+async function loadRom(blob, name) {
+  state.rom = blob; state.romName = name; state.result = null; state.ownPatch = null; $('ownPatchName').textContent = ''; $('result').hidden = true;
+  setStatus(''); $('bar').hidden = true;
+  $('romInfo').hidden = false; $('romInfo').replaceChildren(el('p', { class: 'hint', text: 'Reading…' }));
+  try { state.ident = await identify(blob); } catch (e) { state.ident = { error: 'Couldn’t read this file: ' + e.message }; }
+  showRom(state.ident); renderPatchOpts();
+}
+
+$('romInput').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) loadRom(f, f.name); e.target.value = ''; });
+$('ownPatchInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const u8 = new Uint8Array(await f.arrayBuffer());
+  const fmt = Engine.detectFormat(u8);
+  if (!fmt) { state.ownPatch = null; $('ownPatchName').textContent = f.name + ' isn’t an IPS, UPS, BPS or xdelta patch. If it’s a .zip, unzip it first.'; }
+  else { state.ownPatch = { data: u8, name: f.name.replace(/\.[^.]+$/, ''), fmt }; $('ownPatchName').textContent = f.name + ' · ' + fmt.toUpperCase() + ' · ' + fmtSize(u8.length); }
+  updateGo();
+});
+
+// ---------- patching ----------
+function setStatus(t, kind) { const s = $('status'); s.textContent = t; s.style.color = kind === 'bad' ? 'var(--bad)' : kind === 'ok' ? 'var(--ok)' : ''; }
+function setBar(f) { $('bar').hidden = false; $('barFill').style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+const B64 = (() => { const t = new Uint8Array(256).fill(255); const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; for (let i = 0; i < 64; i++) t[a.charCodeAt(i)] = i; return t; })();
+function decodeB64(src) {
+  let n = src.length; while (n && (src[n - 1] === 61 || B64[src[n - 1]] === 255)) n--;
+  const out = new Uint8Array(Math.floor(n * 3 / 4)); let o = 0, acc = 0, bits = 0;
+  for (let i = 0; i < n; i++) { const v = B64[src[i]]; if (v === 255) continue; acc = (acc << 6) | v; bits += 6; if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 255; } }
+  return out.subarray(0, o);
+}
+async function fetchPatch(p) {
+  const decoded = []; let got = 0, total = 0;
+  for (const url of p.parts) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Couldn\u2019t download the patch (' + res.status + '). Check your connection and try again.');
+    const chunks = []; let len = 0;
+    if (res.body && res.body.getReader) {
+      const rd = res.body.getReader();
+      for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); len += value.length; got += value.length; setBar(got / p.dl * 0.3); setStatus('Downloading patch\u2026 ' + Math.min(99, Math.round(got / p.dl * 100)) + '%'); }
+    } else { const b = new Uint8Array(await res.arrayBuffer()); chunks.push(b); len = b.length; got += len; }
+    const text = new Uint8Array(len); let o = 0; for (const c of chunks) { text.set(c, o); o += c.length; }
+    const bin = text; decoded.push(bin); total += bin.length;
+  }
+  const out = new Uint8Array(total); let o = 0; for (const c of decoded) { out.set(c, o); o += c.length; }
+  if (out.length !== p.size) throw new Error('The patch download was incomplete. Try again.');
+  return out;
+}
+
+// Stored (uncompressed) zip around one file. Parts are Blobs/Uint8Arrays.
+function makeZip(name, dataParts, size, crc) {
+  const nb = new TextEncoder().encode(name);
+  const lh = new DataView(new ArrayBuffer(30));
+  lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+  lh.setUint16(10, 0, true); lh.setUint16(12, 0x5A21, true); lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+  lh.setUint16(26, nb.length, true); lh.setUint16(28, 0, true);
+  const ch = new DataView(new ArrayBuffer(46));
+  ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+  ch.setUint16(12, 0, true); ch.setUint16(14, 0x5A21, true); ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true);
+  ch.setUint16(28, nb.length, true); ch.setUint32(42, 0, true);
+  const cdOff = 30 + nb.length + size, cdSize = 46 + nb.length;
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true); eo.setUint16(8, 1, true); eo.setUint16(10, 1, true); eo.setUint32(12, cdSize, true); eo.setUint32(16, cdOff, true);
+  return new Blob([lh, nb, ...dataParts, ch, nb, eo], { type: 'application/zip' });
+}
+
+async function run() {
+  const p = state.patch, rom = state.rom, id = state.ident;
+  $('goBtn').disabled = true; $('romInput').disabled = true; $('result').hidden = true; state.result = null;
+  try {
+    let patch, baseName, ext;
+    resetRandom();
+    if (p.none) {
+      const sysExt = { GBA: 'gba', GB: 'gb', GBC: 'gbc', NDS: 'nds' }[id.sys];
+      const nm = state.romName.replace(/\.[^.]+$/, '');
+      state.result = { romBlob: rom, romName: nm + '.' + sysExt };
+      setStatus('Ready. ' + state.result.romName + ' · ' + fmtSize(rom.size), 'ok');
+      $('saveNote').hidden = true; $('result').hidden = false; setBar(1);
+      prepRandom(id, p);
+      return;
+    }
+    if (p.own) { patch = state.ownPatch.data; baseName = state.ownPatch.name; ext = { GBA: 'gba', GB: 'gb', GBC: 'gbc', NDS: 'nds' }[id.sys]; }
+    else { patch = await fetchPatch(p); baseName = p.name; ext = p.ext; }
+    const fmt = Engine.detectFormat(patch);
+    if (!fmt) throw new Engine.PatchError('The patch file is damaged. Try again.');
+    let parts, size, crc;
+    if (fmt === 'xdelta') {
+      setStatus('Patching…'); await tick();
+      let acc = new Blob([]), pending = [], pendingBytes = 0; crc = 0; size = 0;
+      const flush = () => { if (pending.length) { acc = new Blob([acc, ...pending]); pending = []; pendingBytes = 0; } };
+      const r = await Engine.applyXdelta(patch, {
+        readSource: async (pos, len) => new Uint8Array(await rom.slice(pos, pos + len).arrayBuffer()),
+        readTarget: async (pos, len) => { flush(); return new Uint8Array(await acc.slice(pos, pos + len).arrayBuffer()); },
+        onWindow: async (u, total, frac) => {
+          crc = Engine.crc32(u, 0, u.length, crc); size = total;
+          pending.push(u); pendingBytes += u.length; if (pendingBytes >= 64 * MB) flush();
+          setBar(0.3 + frac * 0.7); setStatus('Patching… ' + fmtSize(total) + ' written'); await tick();
+        },
+      });
+      flush(); parts = [acc];
+    } else {
+      setStatus('Patching…'); setBar(0.5); await tick();
+      const src = new Uint8Array(await rom.arrayBuffer());
+      const out = fmt === 'ips' ? Engine.applyIPS(src, patch) : fmt === 'ups' ? Engine.applyUPS(src, patch) : Engine.applyBPS(src, patch);
+      parts = [out]; size = out.length; crc = Engine.crc32(out);
+    }
+    setBar(1);
+    const fname = baseName.replace(/[^A-Za-z0-9 ._()&,-]/g, '').trim() || 'Patched game';
+    state.result = { zip: makeZip(fname + '.' + ext, parts, size, crc), romBlob: new Blob(parts), zipName: fname + '.zip', romName: fname + '.' + ext };
+    setStatus('Done. ' + fname + '.' + ext + ' · ' + fmtSize(size) + ' · CRC32 ' + Engine.hex(crc), 'ok');
+    $('saveNote').hidden = true; $('result').hidden = false;
+    prepRandom(id, p);
+  } catch (e) {
+    console.error(e);
+    $('bar').hidden = true;
+    const msg = e instanceof Engine.PatchError ? e.message : (e && e.name === 'RangeError' || /memory/i.test(String(e)))
+      ? 'Your phone ran out of memory for this game. Close other apps and try again.' : 'Something went wrong: ' + (e && e.message || e);
+    setStatus(msg, 'bad');
+  } finally { $('romInput').disabled = false; updateGo(); }
+}
+$('goBtn').addEventListener('click', run);
+
+// ---------- saving ----------
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+$('saveBtn').addEventListener('click', () => {
+  const r = state.result; if (!r) return;
+  saveBlob(r.romBlob, r.romName);
+  const note = $('saveNote'); note.className = 'note ok'; note.textContent = 'Look for ' + r.romName + ' in the Downloads folder of the Files app.'; note.hidden = false;
+});
+// ---------- randomizer (Universal Pokemon Randomizer ZX via CheerpJ) ----------
+const CJ_URL = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
+let cjReady = null, randOut = null, randRuns = 0;
+function resetRandom() {
+  $('step4').setAttribute('aria-disabled', 'true'); $('randBox').hidden = true; $('randResult').hidden = true;
+  $('randStatus').textContent = ''; randOut = null;
+  $('randHint').innerHTML = 'Finish step 3 first. To randomize without patching, pick <b>No patch</b> in step 2.';
+}
+function prepRandom(id, p) {
+  const fam = id && FAMILY[id.ids[0]];
+  const blocked = p && p.file && /^(natdex|maxdex)/.test(p.file);
+  if (!fam || !PRESETS[fam] || blocked) {
+    $('randHint').textContent = blocked ? 'Nat. Dex and MaxDex games need their own versions of the randomizer, which aren’t included here.'
+      : 'There are no randomizer presets for this game.';
+    return;
+  }
+  const sel = $('presetSel'); sel.replaceChildren();
+  for (const pr of PRESETS[fam]) { const o = document.createElement('option'); o.value = pr.file; o.textContent = pr.name; if (pr.name === 'Kaizo') o.selected = true; sel.append(o); }
+  $('randHint').textContent = fam + ' presets for ' + id.label + '.';
+  $('step4').setAttribute('aria-disabled', 'false'); $('randBox').hidden = false; $('randResult').hidden = true; $('randStatus').textContent = '';
+}
+function loadCheerpJ() {
+  if (cjReady) return cjReady;
+  cjReady = new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = CJ_URL; sc.onload = res;
+    sc.onerror = () => rej(new Error('Couldn’t load the Java runtime. Check your connection and try again.'));
+    document.head.append(sc);
+  }).then(() => cheerpjInit({ status: 'none' })).catch((e) => { cjReady = null; throw e; });
+  return cjReady;
+}
+function setRand(t, kind) { const s = $('randStatus'); s.textContent = t; s.style.color = kind === 'bad' ? 'var(--bad)' : kind === 'ok' ? 'var(--ok)' : ''; }
+async function readCjFile(path) { try { return await cjFileBlob(path); } catch (e) { return null; } }
+$('randBtn').addEventListener('click', async () => {
+  const r = state.result; if (!r) return;
+  const btn = $('randBtn'); btn.disabled = true; $('goBtn').disabled = true; $('randResult').hidden = true; $('randBar').hidden = false;
+  try {
+    setRand('Loading the randomizer…'); await loadCheerpJ();
+    setRand('Randomizing…');
+    const run = ++randRuns, ext = r.romName.split('.').pop();
+    const inPath = '/str/kp-in-' + run + '.' + ext, setPath = '/str/kp-set-' + run + '.rnqs';
+    const outPath = '/files/kp-out-' + run + '.' + ext, logPath = '/files/kp-log-' + run + '.txt', resPath = '/files/kp-res-' + run + '.txt';
+    cheerpOSAddStringFile(inPath, new Uint8Array(await r.romBlob.arrayBuffer()));
+    const sres = await fetch('randomizer/presets/' + $('presetSel').value);
+    if (!sres.ok) throw new Error('Couldn’t download the preset. Try again.');
+    cheerpOSAddStringFile(setPath, new Uint8Array(await sres.arrayBuffer()));
+    const base = '/app' + new URL('randomizer/', location.href).pathname;
+    await cheerpjRunMain('KpCli', base + 'PokeRandoZX.jar:' + base + 'kp-cli.jar',
+      '--tmp=/files/kptmp', '--log=' + logPath, '--result=' + resPath, '-s', setPath, '-i', inPath, '-o', outPath, '-l');
+    const res = await readCjFile(resPath), code = res ? (await res.text()).trim() : '';
+    if (code !== '0') {
+      const lg = await readCjFile(logPath); const txt = lg ? (await lg.text()).trim().split('\n').filter(Boolean).slice(-2).join(' ') : '';
+      throw new Error(txt ? 'The randomizer said: ' + txt : 'The randomizer stopped without finishing.');
+    }
+    const out = await readCjFile(outPath);
+    if (!out || !out.size) throw new Error('The randomizer finished but didn’t produce a game.');
+    const spoil = await readCjFile(outPath + '.log');
+    const preset = $('presetSel').selectedOptions[0].textContent;
+    const nm = r.romName.replace(/\.[^.]+$/, '') + ' ' + preset;
+    randOut = { rom: out, romName: nm + '.' + ext, log: spoil, logName: nm + ' spoiler log.txt' };
+    $('logBtn').hidden = !spoil;
+    setRand('Done. ' + randOut.romName + ' · ' + fmtSize(out.size), 'ok'); $('randResult').hidden = false;
+  } catch (e) {
+    console.error(e);
+    setRand(e && e.message ? e.message : 'Randomizing failed.', 'bad');
+  } finally { btn.disabled = false; $('randBar').hidden = true; updateGo(); }
+});
+$('randSaveBtn').addEventListener('click', () => { if (randOut) saveBlob(randOut.rom, randOut.romName); });
+$('logBtn').addEventListener('click', () => { if (randOut && randOut.log) saveBlob(randOut.log, randOut.logName); });
+$('againBtn').addEventListener('click', () => {
+  const r = state.result; if (!r) return;
+  loadRom(r.romBlob, r.romName);
+  window.scrollTo({ top: $('step1').offsetTop - 12, behavior: 'smooth' });
+});
+})();
+</script>
+
+</body>
+</html>
