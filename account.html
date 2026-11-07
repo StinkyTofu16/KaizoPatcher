@@ -89,8 +89,8 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
     </div>
     <form id="form" novalidate>
       <div style="display:flex;flex-direction:column;gap:12px">
-        <label id="nameRow" hidden>Username (shown on the leaderboard)<input id="username" autocomplete="username" maxlength="16" placeholder="3–16 letters, numbers or _"></label>
-        <label>Email<input id="email" type="email" autocomplete="email" inputmode="email"></label>
+        <label id="nameRow" hidden>Username (shown on the leaderboard)<input id="username" autocomplete="nickname" autocapitalize="off" spellcheck="false" maxlength="16" placeholder="3–16 letters, numbers or _"></label>
+        <label>Email<input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false" autofocus></label>
         <label>Password<input id="password" type="password" autocomplete="current-password" minlength="6"></label>
         <button class="btn primary" id="submitBtn" type="submit">Sign in</button>
         <button class="link" id="resetBtn" type="button">Forgot password?</button>
@@ -133,6 +133,7 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
     $('nameRow').hidden = m !== 'up'; $('submitBtn').textContent = m === 'up' ? 'Create account' : 'Sign in';
     $('resetBtn').hidden = m === 'up'; $('password').autocomplete = m === 'up' ? 'new-password' : 'current-password';
     $('formStatus').textContent = '';
+    (m === 'up' ? $('username') : $('email')).focus();
   };
   $('tabIn').addEventListener('click', () => setMode('in'));
   $('tabUp').addEventListener('click', () => setMode('up'));
@@ -144,7 +145,7 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
 
   async function render(u) {
     $('signedOut').hidden = !!u; $('signedIn').hidden = !u;
-    if (!u) return;
+    if (!u) { if (!$('email').value) $('email').focus(); return; }
     $('who').textContent = u.username || 'Player'; $('whoEmail').textContent = u.email || '';
     try {
       const s = await KPCloud.stats();
