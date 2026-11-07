@@ -26,6 +26,8 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); 
 .bar .info b { color: var(--ink); font-weight: 600; }
 .barbtn { font: 600 .88rem system-ui, -apple-system, sans-serif; color: var(--accent); background: transparent; border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 12px; min-height: 36px; white-space: nowrap; cursor: pointer; }
 .barbtn:focus-visible, .sheet button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.newtop { margin-left: auto; }
+.barbtn.armed { background: var(--warn); border-color: var(--warn); color: var(--accent-ink); }
 .speedtag { font: 700 .72rem system-ui, sans-serif; color: var(--accent-ink); background: var(--accent); border-radius: 99px; padding: 2px 8px; }
 .stage { flex: 1; min-height: 0; position: relative; padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
@@ -33,6 +35,8 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); 
 #game { width: 100%; height: 100%; }
 .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .msg.bad { color: var(--bad); }
+.toast { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 1500; max-width: min(90%, 420px); background: rgba(13, 17, 23, .94);
+  color: var(--ink); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: .88rem; text-align: center; pointer-events: none; }
 
 /* On-screen controller. Real sizes (no transforms: the D-pad reads touches from its own box size), proportional
    button positions, generous invisible touch margins, and high contrast so it reads over light game screens. */
@@ -91,7 +95,8 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   /* Narrow the game image so the controls get their own columns instead of covering the screen. */
   #game .ejs_canvas { position: absolute; top: 0; bottom: 0; left: var(--side); width: calc(100% - 2 * var(--side)) !important; height: 100% !important; }
   .runtag { display: inline; }
-  .bar { position: absolute; top: 0; left: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px; padding-left: max(10px, env(safe-area-inset-left, 0px)); }
+  .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
   .bar .info { display: none; }
   .barbtn { pointer-events: auto; background: rgba(13, 17, 23, .85); font-size: .78rem; padding: 4px 10px; min-height: 30px; }
   .sheet { border-radius: 16px; margin-bottom: 8px; max-height: calc(100% - 16px); }
@@ -105,11 +110,13 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
     <button class="barbtn" id="menuBtn" aria-haspopup="dialog"><span class="runtag" id="runTag"></span>Menu</button>
     <span class="info" id="info"></span>
     <span class="speedtag" id="speedTag" hidden></span>
+    <button class="barbtn newtop" id="newTopBtn">New run</button>
   </div>
   <div class="stage">
     <div class="gamebox">
       <div id="game"></div>
       <div class="msg" id="msg">Loading your run…</div>
+      <div class="toast" id="toast" role="status" hidden></div>
     </div>
   </div>
 </div>
@@ -132,7 +139,7 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
       <button class="sbtn" id="toolsBtn">Emulator options <small id="toolsState">Save states, settings</small></button>
       <button class="sbtn" id="starterBtn">Use this save for new runs <small id="starterState">Skip the intro</small></button>
       <button class="sbtn" id="starterClearBtn" hidden>Remove starter save <small>New runs start from scratch</small></button>
-      <p class="hint" id="starterHint">Save in the game first (for example in your room after the intro), then tap this. New runs will start from that save, with fresh randomized Pokémon.</p>
+      <p class="hint" id="starterHint">This happens automatically the first time you save in the game before getting a Pokémon (for example in your room after the intro). You can also save anywhere and tap this. New runs start from that save, with fresh randomized Pokémon.</p>
       <button class="sbtn danger" id="newBtn">New run <small>Re-randomize</small></button>
       <button class="sbtn" id="quitBtn">Quit to home <small>Progress is saved</small></button>
     </div>
@@ -156,6 +163,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   $('sheetSub').textContent = setup.label + ' · Run #' + run.id + ' · ' + run.preset;
 
   const emu = () => (window.EJS_emulator && EJS_emulator.started) ? EJS_emulator : null;
+  let toastTimer = null;
+  function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000); }
   const saveNow = () => { try { const e = emu(); e && e.gameManager.saveSaveFiles(); } catch (e) {} };
 
   // ---- Progress tracking: badges and party read from the in-game save ----
@@ -184,6 +193,13 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       if (!p) return null;
       showProgress(p);
       await KPStore.set('progress', { runKey: runInfo.runKey, ...p });
+      if (!setup.startSave && p.trainer && p.party.length === 0) {
+        setup.startSave = data.slice().buffer;
+        await KPStore.set('setup', setup);
+        showStarter();
+        toast('Intro saved. New runs will start from here, so you won\u2019t make your character again.');
+        if (KPCloud.user()) KPCloud.backupSaves({ startSave: setup.startSave }).catch(() => {});
+      }
       if (KPCloud.user()) {
         KPCloud.recordProgress(runInfo, p).catch((err) => console.warn(err));
         if (Date.now() - lastBackup > 120000) { lastBackup = Date.now(); KPCloud.backupSaves({ current: { runKey: runInfo.runKey, data: data.slice() } }).catch((err) => console.warn(err)); }
@@ -191,7 +207,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       return p;
     } catch (err) { console.warn('Progress read failed', err); return null; }
   }
-  setInterval(track, 60000);
+  setInterval(track, 20000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) track(); });
   const trackSoon = () => Promise.race([track(), new Promise((r) => setTimeout(r, 1500))]);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
@@ -275,28 +291,41 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   function seedStarter() {
     if (!setup.startSave) return;
     try {
+      if (run.seeded) return;
       const gm = EJS_emulator.gameManager, path = gm.getSaveFilePath();
-      if (gm.FS.analyzePath(path).exists) return;
       let cp = '';
       for (const part of path.split('/').slice(0, -1)) { if (!part) continue; cp += '/' + part; if (!gm.FS.analyzePath(cp).exists) gm.FS.mkdir(cp); }
+      if (gm.FS.analyzePath(path).exists) gm.FS.unlink(path);
       gm.FS.writeFile(path, new Uint8Array(setup.startSave));
       gm.loadSaveFiles();
       gm.restart();
+      run.seeded = true;
+      KPStore.set('run', run).catch(() => {});
+      toast('Started from your saved intro. Pick Continue on the title screen.');
     } catch (err) { console.error('Starter save failed', err); }
   }
 
   // ---- New run (two taps) and Quit ----
   let armed = false, armTimer = null;
   function disarm() { armed = false; clearTimeout(armTimer); $('newBtn').classList.remove('armed'); $('newBtn').firstChild.textContent = 'New run '; }
+  function goNewRun(btn) {
+    clearTimeout(armTimer); clearTimeout(topTimer); saveNow();
+    $('newBtn').disabled = true; $('newTopBtn').disabled = true; btn.firstChild.textContent = 'Starting… ';
+    trackSoon().then(() => (KPCloud.user() ? Promise.race([KPCloud.endRun(runInfo.runKey), new Promise((r) => setTimeout(r, 1500))]) : null))
+      .catch(() => {}).finally(() => { location.href = 'play.html?new=1'; });
+  }
+  let topArmed = false, topTimer = null;
+  const disarmTop = () => { topArmed = false; clearTimeout(topTimer); $('newTopBtn').classList.remove('armed'); $('newTopBtn').textContent = 'New run'; };
+  $('newTopBtn').addEventListener('click', () => {
+    if (!topArmed) { topArmed = true; $('newTopBtn').classList.add('armed'); $('newTopBtn').textContent = 'Tap again'; topTimer = setTimeout(disarmTop, 4000); return; }
+    goNewRun($('newTopBtn'));
+  });
   $('newBtn').addEventListener('click', () => {
     if (!armed) {
       armed = true; $('newBtn').classList.add('armed'); $('newBtn').firstChild.textContent = 'Tap again to end run #' + run.id + ' ';
       armTimer = setTimeout(disarm, 4000); return;
     }
-    clearTimeout(armTimer); saveNow();
-    $('newBtn').disabled = true; $('newBtn').firstChild.textContent = 'Starting… ';
-    trackSoon().then(() => (KPCloud.user() ? Promise.race([KPCloud.endRun(runInfo.runKey), new Promise((r) => setTimeout(r, 1500))]) : null))
-      .catch(() => {}).finally(() => { location.href = 'play.html?new=1'; });
+    goNewRun($('newBtn'));
   });
   $('quitBtn').addEventListener('click', () => { saveNow(); trackSoon().finally(() => { location.href = 'play.html'; }); });
 
@@ -331,7 +360,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_ready = () => { $('msg').hidden = true; };
   window.EJS_onGameStart = () => {
     $('msg').hidden = true;
-    seedStarter();
+    // Only a run's very first launch gets the starter save; later launches (Continue) keep the run's own progress.
+    if (!run.launched) { seedStarter(); run.launched = true; KPStore.set('run', run).catch(() => {}); }
     setTimeout(track, 5000);
     // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.
     [0, 300, 1000].forEach((ms) => setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
