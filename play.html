@@ -63,7 +63,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 <div class="wrap">
   <header>
     <h1>KaizoPatcher</h1>
-    <nav class="top"><a href="leaderboard.html">Leaderboard</a><a href="account.html" id="acctLink">Sign in</a><a href="index.html">Patcher</a></nav>
+    <nav class="top"><a href="leaderboard.html">Leaderboard</a><a href="account.html" id="acctLink">Account</a><a href="index.html">Patcher</a></nav>
   </header>
 
   <section class="card" id="empty" hidden>
@@ -165,6 +165,8 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
       setup.runs = id;
       if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await KPStore.set('setup', setup);
+      // Wait for the account service to finish loading so a signed-in player's run is recorded.
+      await Promise.race([KPCloud.init(), new Promise((r) => setTimeout(r, 5000))]);
       if (KPCloud.user()) {
         const code = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
         await Promise.race([KPCloud.startRun({ runKey: setup.key + '-' + id, game: code, label: setup.label, preset: setup.presetName, runNo: id }).catch((e) => console.warn(e)),
