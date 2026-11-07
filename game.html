@@ -27,10 +27,26 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); 
 .bar button, .bar a { font: 600 .88rem system-ui, -apple-system, sans-serif; color: var(--accent); background: transparent; border: 1.5px solid #2e3845; border-radius: 8px; padding: 7px 12px; min-height: 36px; text-decoration: none; white-space: nowrap; cursor: pointer; }
 .bar button.armed { color: #0d1422; background: var(--warn); border-color: var(--warn); }
 .bar button:focus-visible, .bar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.stage { flex: 1; min-height: 0; position: relative; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.stage { flex: 1; min-height: 0; position: relative; padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.gamebox { position: relative; width: 100%; height: 100%; }
 #game { width: 100%; height: 100%; }
-.msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); }
+.msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
 .msg.bad { color: var(--bad); }
+/* Speed toggles sit where the emulator's own Fast/Slow buttons would: 56px up from the bottom, inside the side zones. */
+.speed { position: absolute; bottom: 56px; width: 50px; height: 31px; z-index: 20; font: 15px/29px system-ui, -apple-system, sans-serif; text-align: center;
+  color: #fff; background: rgba(255, 255, 255, .15); border: 1px solid #ccc; border-radius: 5px; padding: 0; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.speed[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0d1422; font-weight: 700; }
+#fastBtn { left: 80px; }
+#slowBtn { right: 80px; }
+/* Phone held sideways: the bar turns into two small buttons in the empty top corners so the game gets the full height. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+  .bar .info { display: none; }
+  .bar button, .bar a { pointer-events: auto; background: rgba(13, 17, 23, .85); font-size: .78rem; padding: 4px 10px; min-height: 30px; }
+  .bar button { margin-right: 30px; }
+}
 </style>
 </head>
 <body>
@@ -41,8 +57,12 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); 
     <button id="newBtn">New run</button>
   </div>
   <div class="stage">
-    <div id="game"></div>
-    <div class="msg" id="msg">Loading your run…</div>
+    <div class="gamebox">
+      <div id="game"></div>
+      <button class="speed" id="fastBtn" aria-pressed="false" hidden>Fast</button>
+      <button class="speed" id="slowBtn" aria-pressed="false" hidden>Slow</button>
+      <div class="msg" id="msg">Loading your run…</div>
+    </div>
   </div>
 </div>
 <script src="kp-store.js"></script>
@@ -79,13 +99,46 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_gameUrl = new Blob([run.rom]);
   window.EJS_gameName = 'kp-run-' + run.id;
   window.EJS_pathtodata = EJS_VERSION_PATH;
-  window.EJS_startOnLoaded = true;
+  // A tap on the start button counts as a user gesture, so iPhone lets the game play sound and it never auto-pauses.
+  window.EJS_startOnLoaded = false;
+  window.EJS_startButtonName = 'Tap to play';
+  window.EJS_alignStartButton = 'center';
+  window.EJS_language = 'en-US';
+  window.EJS_disableAutoLang = false; // the loader treats false as "don't load a translation"
   window.EJS_color = '#7d9bff';
   window.EJS_backgroundColor = '#000000';
   window.EJS_defaultOptions = { 'save-save-interval': '30' };
   window.EJS_Buttons = { restart: false, netplay: false, exitEmulation: false, cacheManager: false, cheat: false };
+  // Controls live in the side zones only: Select under the D-pad, Start under A/B, nothing over the game screen.
+  const pad = [
+    { type: 'button', text: 'B', id: 'b', location: 'right', left: 10, top: 70, bold: true, input_value: 0 },
+    { type: 'button', text: 'A', id: 'a', location: 'right', left: 81, top: 40, bold: true, input_value: 8 },
+    { type: 'dpad', id: 'dpad', location: 'left', left: '50%', top: '50%', joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: 'button', text: 'Select', id: 'select', location: 'left', left: 0, top: 138, fontSize: 15, block: true, input_value: 2 },
+    { type: 'button', text: 'Start', id: 'start', location: 'right', left: 80, top: 143, fontSize: 15, block: true, input_value: 3 },
+  ];
+  if (setup.core === 'gba') pad.push(
+    { type: 'button', text: 'L', id: 'l', location: 'left', left: 3, top: -90, bold: true, block: true, input_value: 10 },
+    { type: 'button', text: 'R', id: 'r', location: 'right', right: 3, top: -90, bold: true, block: true, input_value: 11 });
+  window.EJS_VirtualGamepadSettings = pad;
+
+  // Fast and Slow are on/off toggles instead of hold-to-use.
+  const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  let speed = 'normal';
+  function setSpeed(next) {
+    speed = (speed === next) ? 'normal' : next;
+    try {
+      EJS_emulator.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0);
+      EJS_emulator.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0);
+    } catch (e) { console.error(e); }
+    $('fastBtn').setAttribute('aria-pressed', String(speed === 'fast'));
+    $('slowBtn').setAttribute('aria-pressed', String(speed === 'slow'));
+  }
+  $('fastBtn').addEventListener('click', () => setSpeed('fast'));
+  $('slowBtn').addEventListener('click', () => setSpeed('slow'));
+
   window.EJS_ready = () => { $('msg').hidden = true; };
-  window.EJS_onGameStart = () => { $('msg').hidden = true; };
+  window.EJS_onGameStart = () => { $('msg').hidden = true; $('fastBtn').hidden = !touch; $('slowBtn').hidden = !touch; };
   const sc = document.createElement('script');
   sc.src = EJS_VERSION_PATH + 'loader.js';
   sc.onerror = () => { $('msg').className = 'msg bad'; $('msg').textContent = 'Couldn’t load the game player. Check your connection and reload.'; };
