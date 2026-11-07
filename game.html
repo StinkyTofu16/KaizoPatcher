@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest?v=507639bedd">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -146,10 +146,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js"></script>
-<script src="kp-config.js"></script>
-<script src="kp-gen3.js"></script>
-<script src="kp-cloud.js"></script>
+<script src="kp-store.js?v=507639bedd"></script>
+<script src="kp-config.js?v=507639bedd"></script>
+<script src="kp-gen3.js?v=507639bedd"></script>
+<script src="kp-cloud.js?v=507639bedd"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -173,13 +173,17 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=507639bedd').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (setup.startSave && hasParty(setup.startSave)) { delete setup.startSave; try { await KPStore.set('setup', setup); } catch (e) {} }
   // The account service loads after the game is running, to keep memory free while the emulator starts.
   function startCloud() {
     KPCloud.init().then(() => {
+      // A starter save from the player's account (e.g. set up on another phone) is used from the next run on.
+      if (KPCloud.user() && !setup.startSave) {
+        KPCloud.fetchSaves().then(async (c) => { if (c && c.startSave && !hasParty(c.startSave)) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); showStarter(); } }).catch(() => {});
+      }
       if (KPCloud.user() && !run.cloudStarted) {
         KPCloud.startRun(runInfo).then(() => { run.cloudStarted = true; return KPStore.set('run', run); }).catch((err) => console.warn(err));
       }

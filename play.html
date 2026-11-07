@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest?v=507639bedd">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -112,11 +112,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
   </section>
 </div>
-<script src="kp-store.js"></script>
-<script src="kp-random.js"></script>
-<script src="kp-config.js"></script>
-<script src="kp-gen3.js"></script>
-<script src="kp-cloud.js"></script>
+<script src="kp-store.js?v=507639bedd"></script>
+<script src="kp-random.js?v=507639bedd"></script>
+<script src="kp-gen3.js?v=507639bedd"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -126,12 +124,36 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   $('installTip').hidden = standalone || isNewRun;
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-  // ---- New run: its own lightweight screen. Reads only the game, randomizes, then opens the game screen. ----
+  // ---- New run: randomize the game, save it as the current run, open the game screen. ----
+  const st = $('startStatus');
+  const fail = (msg, e) => {
+    st.className = 'status bad';
+    st.textContent = msg + (e ? ' (Details: ' + [e.name, e.message].filter(Boolean).join(': ') + ')' : '');
+    $('startBar').hidden = true; $('startActions').hidden = false; $('startTitle').textContent = 'Couldn\u2019t start the run';
+  };
+  async function doNewRun(su) {
+    $('starting').hidden = false; $('main').hidden = true; $('settings').hidden = true; $('installTip').hidden = true;
+    let stage = 'randomizing';
+    try {
+      const out = await KPRandom.run(new Uint8Array(su.rom), su.ext, su.presetFile, (t) => { st.textContent = t; });
+      st.textContent = 'Saving\u2026'; stage = 'saving';
+      const id = (su.runs || 0) + 1;
+      const rec = { id, preset: su.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
+      await KPStore.set('run', rec);
+      su.runs = id;
+      if (!su.key) su.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await KPStore.set('setup', su);
+      location.replace('game.html');
+    } catch (e) {
+      console.error(e);
+      fail(stage === 'saving' ? 'Couldn\u2019t save the new run on this phone. It may be low on storage.' : ((e && e.message) || 'Something went wrong while randomizing.'), e);
+    }
+  }
+
+  // Coming from the game screen's New run button: read the game, then start.
   if (isNewRun) {
     history.replaceState(null, '', 'play.html');
     $('starting').hidden = false;
-    const st = $('startStatus');
-    const fail = (msg) => { st.className = 'status bad'; st.textContent = msg; $('startBar').hidden = true; $('startActions').hidden = false; $('startTitle').textContent = 'Couldn\u2019t start the run'; };
     try {
       setup = await withTimeout(KPStore.get('setup'), 30000);
       try { sessionStorage.removeItem('kp-newrun-retry'); } catch (e) {}
@@ -140,22 +162,10 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
       let retried = false; try { retried = sessionStorage.getItem('kp-newrun-retry') === '1'; sessionStorage.setItem('kp-newrun-retry', '1'); } catch (x) {}
       if (!retried) { st.textContent = 'Waking up storage\u2026'; location.replace('play.html?new=1'); return; }
       try { sessionStorage.removeItem('kp-newrun-retry'); } catch (x) {}
-      fail('Your phone\u2019s storage didn\u2019t respond. Close the app completely (swipe it away), reopen it, and try again.'); return;
+      fail('Your phone\u2019s storage didn\u2019t respond. Close the app completely (swipe it away), reopen it, and try again.', e); return;
     }
     if (!setup) { location.replace('play.html'); return; }
-    try {
-      const out = await KPRandom.run(new Uint8Array(setup.rom), setup.ext, setup.presetFile, (t) => { st.textContent = t; });
-      st.textContent = 'Saving\u2026';
-      const id = (setup.runs || 0) + 1;
-      const rec = { id, preset: setup.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
-      await KPStore.set('run', rec);
-      setup.runs = id;
-      if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      await KPStore.set('setup', setup);
-      location.replace('game.html');
-    } catch (e) {
-      console.error(e); fail((e && e.message) || 'Something went wrong while randomizing.');
-    }
+    await doNewRun(setup);
     return;
   }
 
@@ -185,17 +195,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  // Accounts: show who's signed in, and bring a starter save down from the cloud on a new device.
-  KPCloud.init().then(async (ok) => {
-    if (!ok) return;
-    const showUser = (u) => { $('acctLink').textContent = u ? (u.username || 'Account') : 'Sign in'; };
-    KPCloud.onChange(showUser); showUser(KPCloud.user());
-    if (KPCloud.user() && !setup.startSave) {
-      try { const c = await KPCloud.fetchSaves(); if (c && c.startSave && starterIsClean(c.startSave)) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); render(); } } catch (e) { console.warn(e); }
-    }
-  });
-
-  try { presets = await (await fetch('randomizer/presets.json')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=507639bedd')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
@@ -210,7 +210,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 
   let armed = false, armTimer = null;
   $('newBtn').addEventListener('click', () => {
-    if (!run || armed) { armed = false; clearTimeout(armTimer); $('newBtn').disabled = true; location.href = 'play.html?new=1'; return; }
+    if (!run || armed) { armed = false; clearTimeout(armTimer); $('newBtn').disabled = true; doNewRun(setup); return; }
     armed = true; $('newBtn').textContent = 'Tap again to end run #' + run.id;
     armTimer = setTimeout(() => { armed = false; render(); }, 4000);
   });
