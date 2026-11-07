@@ -80,8 +80,9 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
   </section>
 
   <section class="card" id="signedOut" hidden>
-    <p class="eyebrow">Save your runs</p>
+    <p class="eyebrow">Optional</p>
     <h2>Sign in to track runs and join the leaderboard</h2>
+    <p class="hint">You don’t need an account to play. Everything works without one; signing in only adds stats, save backup and the leaderboard.</p>
     <div class="tabs" role="tablist">
       <button role="tab" id="tabIn" aria-selected="true">Sign in</button>
       <button role="tab" id="tabUp" aria-selected="false">Create account</button>
@@ -96,6 +97,7 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
         <p class="status" id="formStatus" aria-live="polite"></p>
       </div>
     </form>
+    <a class="btn secondary" href="play.html" style="text-align:center;text-decoration:none;display:block">Continue without an account</a>
     <p class="hint">Your game files never leave your phone. Your account stores your run stats, your starter save and a backup of your current save.</p>
   </section>
 
