@@ -83,7 +83,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 
 /* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
-  #game { --zone: 138px; --pad-bottom: 44px; --side: 160px; }
+  /* Side columns only as wide as needed: at least 112px, or whatever is left beside a full-height 3:2 screen. */
+  #game { --zone: 112px; --pad-bottom: 44px; --side: max(116px, calc(50% - 75dvh)); }
+  #game .ejs_virtualGamepad_left { left: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
+  #game .ejs_virtualGamepad_right { right: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
+  #game .b_a, #game .b_b { width: 46% !important; height: 46% !important; }
   /* Narrow the game image so the controls get their own columns instead of covering the screen. */
   #game .ejs_canvas { position: absolute; top: 0; bottom: 0; left: var(--side); width: calc(100% - 2 * var(--side)) !important; height: 100% !important; }
   .runtag { display: inline; }
@@ -314,8 +318,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_Buttons = { restart: false, netplay: false, exitEmulation: false, cacheManager: false, cheat: false };
   // Controller: Select centered under the D-pad, Start centered under A/B, each with a clear gap. Speed lives in the Menu sheet.
   const pad = [
-    { type: 'button', text: 'B', id: 'b', location: 'right', left: '2%', top: '50%', bold: true, input_value: 0 },
-    { type: 'button', text: 'A', id: 'a', location: 'right', left: '56%', top: '14%', bold: true, input_value: 8 },
+    { type: 'button', text: 'B', id: 'b', location: 'right', left: '0%', top: '52%', bold: true, input_value: 0 },
+    { type: 'button', text: 'A', id: 'a', location: 'right', left: '54%', top: '12%', bold: true, input_value: 8 },
     { type: 'dpad', id: 'dpad', location: 'left', left: '50%', top: '50%', joystickInput: false, inputValues: [4, 5, 6, 7] },
     { type: 'button', text: 'Select', id: 'select', location: 'left', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 2 },
     { type: 'button', text: 'Start', id: 'start', location: 'right', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 3 },
