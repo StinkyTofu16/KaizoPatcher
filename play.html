@@ -32,6 +32,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
 .wrap { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 { font: 700 1.7rem/1 var(--f-display); margin: 0; letter-spacing: .01em; }
+nav.top { display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
 header a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: .92rem; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .eyebrow { font: 600 .74rem var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
@@ -62,7 +63,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 <div class="wrap">
   <header>
     <h1>KaizoPatcher</h1>
-    <a href="index.html">Patcher</a>
+    <nav class="top"><a href="leaderboard.html">Leaderboard</a><a href="account.html" id="acctLink">Sign in</a><a href="index.html">Patcher</a></nav>
   </header>
 
   <section class="card" id="empty" hidden>
@@ -102,6 +103,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 </div>
 <script src="kp-store.js"></script>
 <script src="kp-random.js"></script>
+<script src="kp-config.js"></script>
+<script src="kp-gen3.js"></script>
+<script src="kp-cloud.js"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -126,6 +130,16 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   };
   render();
 
+  // Accounts: show who's signed in, and bring a starter save down from the cloud on a new device.
+  KPCloud.init().then(async (ok) => {
+    if (!ok) return;
+    const showUser = (u) => { $('acctLink').textContent = u ? (u.username || 'Account') : 'Sign in'; };
+    KPCloud.onChange(showUser); showUser(KPCloud.user());
+    if (KPCloud.user() && !setup.startSave) {
+      try { const c = await KPCloud.fetchSaves(); if (c && c.startSave) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); render(); } } catch (e) { console.warn(e); }
+    }
+  });
+
   try { presets = await (await fetch('randomizer/presets.json')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
@@ -148,7 +162,14 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
       const id = (setup.runs || 0) + 1;
       const rec = { id, preset: setup.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
       await KPStore.set('run', rec);
-      setup.runs = id; await KPStore.set('setup', setup);
+      setup.runs = id;
+      if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await KPStore.set('setup', setup);
+      if (KPCloud.user()) {
+        const code = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
+        await Promise.race([KPCloud.startRun({ runKey: setup.key + '-' + id, game: code, label: setup.label, preset: setup.presetName, runNo: id }).catch((e) => console.warn(e)),
+          new Promise((r) => setTimeout(r, 2000))]);
+      }
       location.href = 'game.html';
     } catch (e) {
       console.error(e);

@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // A player's own profile, run history and save backups: only they can read or change them.
+    match /users/{uid}/{rest=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Usernames are claimed once, by the account that owns them.
+    match /usernames/{name} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && name.matches('^[a-z0-9_]{3,16}$');
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // Public leaderboard: anyone can read; each player can only write their own entry, with sane values.
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['username', 'score', 'badges', 'champion', 'party', 'game', 'preset', 'runNo', 'runKey', 'updatedAt'])
+        && request.resource.data.username is string && request.resource.data.username.size() <= 16
+        && request.resource.data.score is int && request.resource.data.score >= 0 && request.resource.data.score <= 9100
+        && request.resource.data.badges is int && request.resource.data.badges >= 0 && request.resource.data.badges <= 8
+        && request.resource.data.champion is bool
+        && request.resource.data.party is list && request.resource.data.party.size() <= 6
+        && request.resource.data.game is string && request.resource.data.game.size() <= 60
+        && request.resource.data.preset is string && request.resource.data.preset.size() <= 40;
+    }
+  }
+}

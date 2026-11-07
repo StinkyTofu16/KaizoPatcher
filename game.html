@@ -78,6 +78,8 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .hint { margin: 0; color: var(--muted); font-size: .8rem; }
 .hint.ok { color: #6fd39c; }
+.progress { margin: -6px 0 0; font-size: .86rem; color: var(--ink); }
+.progress b { color: var(--accent); }
 
 /* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
@@ -112,6 +114,7 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <h2 id="sheetTitle">Paused</h2>
     <p class="sub" id="sheetSub"></p>
+    <p class="progress" id="progressLine" hidden></p>
     <div>
       <p class="label">Game speed</p>
       <div class="seg" role="group" aria-label="Game speed">
@@ -133,6 +136,9 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 </div>
 
 <script src="kp-store.js"></script>
+<script src="kp-config.js"></script>
+<script src="kp-gen3.js"></script>
+<script src="kp-cloud.js"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -147,6 +153,43 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 
   const emu = () => (window.EJS_emulator && EJS_emulator.started) ? EJS_emulator : null;
   const saveNow = () => { try { const e = emu(); e && e.gameManager.saveSaveFiles(); } catch (e) {} };
+
+  // ---- Progress tracking: badges and party read from the in-game save ----
+  const romU8 = new Uint8Array(run.rom, 0, 0x100);
+  const gameCode = String.fromCharCode(...romU8.subarray(0xAC, 0xB0));
+  if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
+  const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
+  let species = null, lastBackup = 0;
+  fetch('gen3-species.json').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  KPCloud.init();
+  function showProgress(p) {
+    const el = $('progressLine'); if (!p) { el.hidden = true; return; }
+    const team = p.party.map((m) => m.name + ' ' + m.level).join(', ');
+    el.innerHTML = '';
+    const b = document.createElement('b'); b.textContent = p.champion ? 'Champion' : p.badges + (p.badges === 1 ? ' badge' : ' badges');
+    el.append(b, document.createTextNode(team ? ' \u00b7 ' + team : ''));
+    el.hidden = false;
+  }
+  async function track() {
+    const e = emu(); if (!e || !species) return null;
+    try {
+      e.gameManager.saveSaveFiles();
+      const data = e.gameManager.getSaveFile(false);
+      if (!data || !data.length) return null;
+      const p = KPGen3.read(data, gameCode, species);
+      if (!p) return null;
+      showProgress(p);
+      await KPStore.set('progress', { runKey: runInfo.runKey, ...p });
+      if (KPCloud.user()) {
+        KPCloud.recordProgress(runInfo, p).catch((err) => console.warn(err));
+        if (Date.now() - lastBackup > 120000) { lastBackup = Date.now(); KPCloud.backupSaves({ current: { runKey: runInfo.runKey, data: data.slice() } }).catch((err) => console.warn(err)); }
+      }
+      return p;
+    } catch (err) { console.warn('Progress read failed', err); return null; }
+  }
+  setInterval(track, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) track(); });
+  const trackSoon = () => Promise.race([track(), new Promise((r) => setTimeout(r, 1500))]);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
   window.addEventListener('pagehide', saveNow);
 
@@ -156,6 +199,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     const e = emu();
     if (e && !e.paused && typeof e.togglePlaying === 'function') { e.togglePlaying(); pausedByMenu = true; }
     $('scrim').hidden = false; $('resumeBtn').focus();
+    track();
   }
   function closeSheet() {
     $('scrim').hidden = true; disarm();
@@ -214,6 +258,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       if (!data || !data.length) { hint.className = 'hint'; hint.textContent = 'There\u2019s no in-game save yet. Save in the game first, then tap this again.'; return; }
       setup.startSave = data.slice().buffer;
       await KPStore.set('setup', setup);
+      if (KPCloud.user()) KPCloud.backupSaves({ startSave: setup.startSave }).catch((err) => console.warn(err));
       hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.';
       showStarter();
     } catch (err) { console.error(err); hint.className = 'hint'; hint.textContent = 'Couldn\u2019t store the save: ' + ((err && err.message) || err); }
@@ -246,9 +291,10 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     }
     clearTimeout(armTimer); saveNow();
     $('newBtn').disabled = true; $('newBtn').firstChild.textContent = 'Starting… ';
-    setTimeout(() => { location.href = 'play.html?new=1'; }, 400);
+    trackSoon().then(() => (KPCloud.user() ? Promise.race([KPCloud.endRun(runInfo.runKey), new Promise((r) => setTimeout(r, 1500))]) : null))
+      .catch(() => {}).finally(() => { location.href = 'play.html?new=1'; });
   });
-  $('quitBtn').addEventListener('click', () => { saveNow(); setTimeout(() => { location.href = 'play.html'; }, 400); });
+  $('quitBtn').addEventListener('click', () => { saveNow(); trackSoon().finally(() => { location.href = 'play.html'; }); });
 
   // ---- Emulator ----
   window.EJS_player = '#game';
@@ -282,6 +328,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_onGameStart = () => {
     $('msg').hidden = true;
     seedStarter();
+    setTimeout(track, 5000);
     // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.
     [0, 300, 1000].forEach((ms) => setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
   };

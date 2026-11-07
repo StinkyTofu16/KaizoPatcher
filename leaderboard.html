@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KaizoPatcher Leaderboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KaizoPatcher">
+<meta name="theme-color" content="#11161d">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a ranked list. Each row: rank, player and game, badge progress as eight pips, then the team as level-tagged chips. */
+:root {
+  --bg: #11161d; --panel: #1a212b; --ink: #e4e9f0; --muted: #98a3b3; --line: #2e3845;
+  --accent: #7d9bff; --accent-ink: #0d1422; --gold: #f0c75c; --silver: #c9d1dc; --bronze: #d8955b; --bad: #ff8f86;
+  --f-display: "Chakra Petch", "Avenir Next Condensed", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); min-height: 100vh;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 40px; }
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font: 700 1.7rem/1 var(--f-display); margin: 0; }
+nav { display: flex; gap: 14px; }
+nav a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: .92rem; }
+.hint { color: var(--muted); font-size: .86rem; margin: 0; }
+.status { margin: 0; color: var(--muted); }
+.status.bad { color: var(--bad); }
+ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 2.2rem 1fr; gap: 6px 12px; min-width: 0; }
+li.me { border-color: var(--accent); }
+.rank { font: 700 1.3rem/1.2 var(--f-mono); font-variant-numeric: tabular-nums; color: var(--muted); grid-row: span 3; }
+li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var(--silver); } li:nth-child(3) .rank { color: var(--bronze); }
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.game { font-size: .84rem; color: var(--muted); }
+.pips { display: flex; gap: 4px; align-items: center; flex: none; }
+.pip { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--line); }
+.pip.on { background: var(--accent); border-color: var(--accent); }
+.champ { font: 700 .75rem var(--f-body); background: var(--gold); color: #1d1600; border-radius: 99px; padding: 2px 9px; }
+.team { display: flex; flex-wrap: wrap; gap: 6px; }
+.mon { font-size: .84rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; white-space: nowrap; }
+.mon b { font: 500 .78rem var(--f-mono); color: var(--muted); margin-left: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Leaderboard</h1>
+    <nav><a href="play.html">Play</a><a href="account.html" id="acctLink">Sign in</a></nav>
+  </header>
+  <p class="hint">Each player’s best run: badges earned (beating the Champion ranks highest), then the highest level on the team. Shows the Pokémon they used.</p>
+  <p class="status" id="status">Loading…</p>
+  <ol id="list"></ol>
+</div>
+<script src="kp-config.js"></script>
+<script src="kp-gen3.js"></script>
+<script src="kp-cloud.js"></script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const ok = await KPCloud.init();
+  if (!ok) { $('status').textContent = 'The leaderboard didn’t load. Check your connection and reload.'; $('status').className = 'status bad'; return; }
+  const me = KPCloud.user();
+  if (me) $('acctLink').textContent = me.username || 'Account';
+  let rows;
+  try { rows = await KPCloud.leaderboard(100); } catch (e) { console.warn(e); $('status').textContent = 'Couldn’t load the leaderboard: ' + e.message; $('status').className = 'status bad'; return; }
+  if (!rows.length) { $('status').textContent = 'No runs yet. Sign in and play to be the first on the board.'; return; }
+  $('status').hidden = true;
+  const ol = $('list');
+  rows.forEach((r, i) => {
+    const li = document.createElement('li'); if (me && r.uid === me.uid) li.className = 'me';
+    const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = i + 1;
+    const top = document.createElement('div'); top.className = 'top';
+    const who = document.createElement('div');
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = r.username || 'Player';
+    const game = document.createElement('div'); game.className = 'game'; game.textContent = (r.game || '') + ' · ' + (r.preset || '') + ' · Run #' + (r.runNo || '?');
+    who.append(name, game);
+    const prog = document.createElement('div'); prog.className = 'pips';
+    if (r.champion) { const c = document.createElement('span'); c.className = 'champ'; c.textContent = 'Champion'; prog.append(c); }
+    else { prog.setAttribute('aria-label', (r.badges || 0) + ' of 8 badges'); for (let k = 0; k < 8; k++) { const p = document.createElement('span'); p.className = 'pip' + (k < (r.badges || 0) ? ' on' : ''); prog.append(p); } }
+    top.append(who, prog);
+    const team = document.createElement('div'); team.className = 'team';
+    for (const m of (r.party || [])) { const c = document.createElement('span'); c.className = 'mon'; c.textContent = m.name; const lv = document.createElement('b'); lv.textContent = 'Lv' + m.level; c.append(lv); team.append(c); }
+    if (!(r.party || []).length) { const c = document.createElement('span'); c.className = 'hint'; c.textContent = 'No Pokémon yet'; team.append(c); }
+    li.append(rank, top, team); ol.append(li);
+  });
+})();
+</script>
+</body>
+</html>
