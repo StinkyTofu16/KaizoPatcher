@@ -133,8 +133,13 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     const st = $('startStatus');
     const fail = (msg) => { st.className = 'status bad'; st.textContent = msg; $('startBar').hidden = true; $('startActions').hidden = false; $('startTitle').textContent = 'Couldn\u2019t start the run'; };
     try {
-      setup = await withTimeout(KPStore.get('setup'), 15000);
+      setup = await withTimeout(KPStore.get('setup'), 30000);
+      try { sessionStorage.removeItem('kp-newrun-retry'); } catch (e) {}
     } catch (e) {
+      // One automatic reload usually clears a stuck Safari storage connection.
+      let retried = false; try { retried = sessionStorage.getItem('kp-newrun-retry') === '1'; sessionStorage.setItem('kp-newrun-retry', '1'); } catch (x) {}
+      if (!retried) { st.textContent = 'Waking up storage\u2026'; location.replace('play.html?new=1'); return; }
+      try { sessionStorage.removeItem('kp-newrun-retry'); } catch (x) {}
       fail('Your phone\u2019s storage didn\u2019t respond. Close the app completely (swipe it away), reopen it, and try again.'); return;
     }
     if (!setup) { location.replace('play.html'); return; }
