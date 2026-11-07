@@ -66,6 +66,17 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <nav class="top"><a href="leaderboard.html">Leaderboard</a><a href="account.html" id="acctLink">Account</a><a href="index.html">Patcher</a></nav>
   </header>
 
+  <section class="card" id="starting" hidden>
+    <p class="eyebrow">New run</p>
+    <p class="game" id="startTitle">Starting a new run…</p>
+    <div class="bar" id="startBar"><i></i></div>
+    <p class="status" id="startStatus" aria-live="polite">Loading your game…</p>
+    <div class="actions" id="startActions" hidden>
+      <a class="btn primary" href="play.html?new=1">Try again</a>
+      <a class="btn secondary" href="play.html">Back</a>
+    </div>
+  </section>
+
   <section class="card" id="empty" hidden>
     <p class="eyebrow">No game yet</p>
     <p class="game">Set up a game to play</p>
@@ -111,9 +122,39 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   const $ = (id) => document.getElementById(id);
   let setup = null, run = null, presets = {};
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  $('installTip').hidden = standalone;
+  const isNewRun = new URLSearchParams(location.search).get('new') === '1';
+  $('installTip').hidden = standalone || isNewRun;
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-  try { setup = await KPStore.get('setup'); run = await KPStore.get('run'); } catch (e) { setup = null; }
+  // ---- New run: its own lightweight screen. Reads only the game, randomizes, then opens the game screen. ----
+  if (isNewRun) {
+    history.replaceState(null, '', 'play.html');
+    $('starting').hidden = false;
+    const st = $('startStatus');
+    const fail = (msg) => { st.className = 'status bad'; st.textContent = msg; $('startBar').hidden = true; $('startActions').hidden = false; $('startTitle').textContent = 'Couldn\u2019t start the run'; };
+    try {
+      setup = await withTimeout(KPStore.get('setup'), 15000);
+    } catch (e) {
+      fail('Your phone\u2019s storage didn\u2019t respond. Close the app completely (swipe it away), reopen it, and try again.'); return;
+    }
+    if (!setup) { location.replace('play.html'); return; }
+    try {
+      const out = await KPRandom.run(new Uint8Array(setup.rom), setup.ext, setup.presetFile, (t) => { st.textContent = t; });
+      st.textContent = 'Saving\u2026';
+      const id = (setup.runs || 0) + 1;
+      const rec = { id, preset: setup.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
+      await KPStore.set('run', rec);
+      setup.runs = id;
+      if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await KPStore.set('setup', setup);
+      location.replace('game.html');
+    } catch (e) {
+      console.error(e); fail((e && e.message) || 'Something went wrong while randomizing.');
+    }
+    return;
+  }
+
+  try { setup = await withTimeout(KPStore.get('setup'), 15000); run = await withTimeout(KPStore.get('run'), 15000); } catch (e) { setup = null; }
   if (!setup) { $('empty').hidden = false; return; }
 
   $('main').hidden = false; $('settings').hidden = false;
@@ -128,7 +169,6 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     $('logBtn').hidden = !(run && run.log);
     $('introSkip').hidden = !setup.startSave;
   };
-  const isNewRun = new URLSearchParams(location.search).get('new') === '1';
   const gameCode = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
   // A starter save must be from before the first Pokémon; otherwise every run would start with that same Pokémon.
   const starterIsClean = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !p || p.party.length === 0; } catch (e) { return true; } };
@@ -141,8 +181,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
   // Accounts: show who's signed in, and bring a starter save down from the cloud on a new device.
-  // Skipped while starting a new run: the randomizer needs the phone's memory.
-  if (!isNewRun) KPCloud.init().then(async (ok) => {
+  KPCloud.init().then(async (ok) => {
     if (!ok) return;
     const showUser = (u) => { $('acctLink').textContent = u ? (u.username || 'Account') : 'Sign in'; };
     KPCloud.onChange(showUser); showUser(KPCloud.user());
@@ -165,26 +204,6 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   $('continueBtn').addEventListener('click', () => { location.href = 'game.html'; });
 
   let armed = false, armTimer = null;
-  async function newRun() {
-    $('newBtn').disabled = true; $('continueBtn').disabled = true; $('bar').hidden = false; $('status').className = 'status';
-    try {
-      const out = await KPRandom.run(new Uint8Array(setup.rom), setup.ext, setup.presetFile, (t) => { $('status').textContent = t; });
-      $('status').textContent = 'Saving…';
-      const id = (setup.runs || 0) + 1;
-      const rec = { id, preset: setup.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
-      await KPStore.set('run', rec);
-      setup.runs = id;
-      if (!setup.key) setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      await KPStore.set('setup', setup);
-      // The game screen records the run to the player's account on its first launch.
-      location.href = 'game.html';
-    } catch (e) {
-      console.error(e);
-      $('status').className = 'status bad';
-      $('status').textContent = (e && e.message) || 'Couldn’t start a new run.';
-      $('newBtn').disabled = false; $('continueBtn').disabled = false; $('bar').hidden = true;
-    }
-  }
   $('newBtn').addEventListener('click', () => {
     if (!run || armed) { armed = false; clearTimeout(armTimer); $('newBtn').disabled = true; location.href = 'play.html?new=1'; return; }
     armed = true; $('newBtn').textContent = 'Tap again to end run #' + run.id;
@@ -197,10 +216,6 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
   });
 
-  if (new URLSearchParams(location.search).get('new') === '1') {
-    history.replaceState(null, '', 'play.html');
-    newRun();
-  }
 })();
 </script>
 </body>
