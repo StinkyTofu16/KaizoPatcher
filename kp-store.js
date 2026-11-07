@@ -63,11 +63,32 @@ const KPStore = (() => {
       }
     }
   }
-  return {
-    get: (k) => tx('readonly', (s) => s.get(k)),
-    set: (k, v) => tx('readwrite', (s) => { s.put(v, k); }),
-    del: (k) => tx('readwrite', (s) => { s.delete(k); }),
-  };
+  const get = (k) => tx('readonly', (s) => s.get(k));
+  const set = (k, v) => tx('readwrite', (s) => { s.put(v, k); });
+  const del = (k) => tx('readwrite', (s) => { s.delete(k); });
+
+  // Big binaries live under their own keys so small changes never rewrite a 16 MB game file:
+  //   setup (details) + setupRom (base game) + startSave (intro save)
+  //   run (details)   + runRom (randomized game) + runLog (spoiler log)
+  // Older versions kept the game inside setup/run; move it out once.
+  async function migrate() {
+    const s = await get('setup');
+    if (s && (s.rom || s.startSave)) {
+      if (s.rom) { if (!s.code) s.code = String.fromCharCode(...new Uint8Array(s.rom, 0xAC, 4)); await set('setupRom', s.rom); }
+      if (s.startSave) await set('startSave', s.startSave);
+      delete s.rom; delete s.startSave;
+      await set('setup', s);
+    }
+    const r = await get('run');
+    if (r && (r.rom || r.log)) {
+      if (r.rom) await set('runRom', r.rom);
+      if (r.log) await set('runLog', r.log);
+      r.hasLog = !!r.log;
+      delete r.rom; delete r.log;
+      await set('run', r);
+    }
+  }
+  return { get, set, del, migrate };
 })();
 
 const KP_CORES = { GBA: { core: 'gba', ext: 'gba' }, GB: { core: 'gb', ext: 'gb' }, GBC: { core: 'gb', ext: 'gbc' } };

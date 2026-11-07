@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=507639bedd">
+<link rel="manifest" href="manifest.webmanifest?v=9287a1937a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -146,17 +146,23 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=507639bedd"></script>
-<script src="kp-config.js?v=507639bedd"></script>
-<script src="kp-gen3.js?v=507639bedd"></script>
-<script src="kp-cloud.js?v=507639bedd"></script>
+<script src="kp-store.js?v=9287a1937a"></script>
+<script src="kp-config.js?v=9287a1937a"></script>
+<script src="kp-gen3.js?v=9287a1937a"></script>
+<script src="kp-cloud.js?v=9287a1937a"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
   const $ = (id) => document.getElementById(id);
   let setup, run;
-  try { setup = await KPStore.get('setup'); run = await KPStore.get('run'); } catch (e) {}
-  if (!setup || !run) { location.replace('play.html'); return; }
+  let runRom = null, startSave = null;
+  try {
+    await KPStore.migrate();
+    setup = await KPStore.get('setup'); run = await KPStore.get('run');
+    runRom = await KPStore.get('runRom'); startSave = await KPStore.get('startSave');
+  } catch (e) {}
+  if (!setup || !run || !runRom) { location.replace('play.html'); return; }
+  const saveRunMeta = () => KPStore.set('run', run).catch(() => {});
   const b = document.createElement('b'); b.textContent = 'Run #' + run.id;
   $('info').append(b, document.createTextNode(' · ' + run.preset));
   $('runTag').textContent = '#' + run.id + ' \u00b7 ';
@@ -168,24 +174,23 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const saveNow = () => { try { const e = emu(); e && e.gameManager.saveSaveFiles(); } catch (e) {} };
 
   // ---- Progress tracking: badges and party read from the in-game save ----
-  const romU8 = new Uint8Array(run.rom, 0, 0x100);
-  const gameCode = String.fromCharCode(...romU8.subarray(0xAC, 0xB0));
+  const gameCode = String.fromCharCode(...new Uint8Array(runRom, 0xAC, 4));
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=507639bedd').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=9287a1937a').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
-  if (setup.startSave && hasParty(setup.startSave)) { delete setup.startSave; try { await KPStore.set('setup', setup); } catch (e) {} }
+  if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
   // The account service loads after the game is running, to keep memory free while the emulator starts.
   function startCloud() {
     KPCloud.init().then(() => {
       // A starter save from the player's account (e.g. set up on another phone) is used from the next run on.
-      if (KPCloud.user() && !setup.startSave) {
-        KPCloud.fetchSaves().then(async (c) => { if (c && c.startSave && !hasParty(c.startSave)) { setup.startSave = c.startSave.slice().buffer; await KPStore.set('setup', setup); showStarter(); } }).catch(() => {});
+      if (KPCloud.user() && !startSave) {
+        KPCloud.fetchSaves().then(async (c) => { if (c && c.startSave && !hasParty(c.startSave)) { startSave = c.startSave.slice().buffer; await KPStore.set('startSave', startSave); showStarter(); } }).catch(() => {});
       }
       if (KPCloud.user() && !run.cloudStarted) {
-        KPCloud.startRun(runInfo).then(() => { run.cloudStarted = true; return KPStore.set('run', run); }).catch((err) => console.warn(err));
+        KPCloud.startRun(runInfo).then(() => { run.cloudStarted = true; return saveRunMeta(); }).catch((err) => console.warn(err));
       }
     });
   }
@@ -207,12 +212,12 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       if (!p) return null;
       showProgress(p);
       await KPStore.set('progress', { runKey: runInfo.runKey, ...p });
-      if (!setup.startSave && p.trainer && p.party.length === 0) {
-        setup.startSave = data.slice().buffer;
-        await KPStore.set('setup', setup);
+      if (!startSave && p.trainer && p.party.length === 0) {
+        startSave = data.slice().buffer;
+        await KPStore.set('startSave', startSave);
         showStarter();
         toast('Intro saved. New runs will start from here, so you won\u2019t make your character again.');
-        if (KPCloud.user()) KPCloud.backupSaves({ startSave: setup.startSave }).catch(() => {});
+        if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch(() => {});
       }
       if (KPCloud.user()) {
         KPCloud.recordProgress(runInfo, p).catch((err) => console.warn(err));
@@ -277,7 +282,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 
   // ---- Starter save: lets new runs skip the intro ----
   function showStarter() {
-    const has = !!setup.startSave;
+    const has = !!startSave;
     $('starterBtn').firstChild.textContent = has ? 'Replace starter save ' : 'Use this save for new runs ';
     $('starterState').textContent = has ? 'New runs skip the intro' : 'Skip the intro';
     $('starterClearBtn').hidden = !has;
@@ -291,31 +296,31 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       const data = e.gameManager.getSaveFile(false);
       if (!data || !data.length) { hint.className = 'hint'; hint.textContent = 'There\u2019s no in-game save yet. Save in the game first, then tap this again.'; return; }
       if (hasParty(data)) { hint.className = 'hint'; hint.textContent = 'This save already has a Pok\u00e9mon, so every new run would start with it. Use a save from before you get your first Pok\u00e9mon (for example in your room after the intro).'; return; }
-      setup.startSave = data.slice().buffer;
-      await KPStore.set('setup', setup);
-      if (KPCloud.user()) KPCloud.backupSaves({ startSave: setup.startSave }).catch((err) => console.warn(err));
+      startSave = data.slice().buffer;
+      await KPStore.set('startSave', startSave);
+      if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch((err) => console.warn(err));
       hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.';
       showStarter();
     } catch (err) { console.error(err); hint.className = 'hint'; hint.textContent = 'Couldn\u2019t store the save: ' + ((err && err.message) || err); }
   });
   $('starterClearBtn').addEventListener('click', async () => {
-    delete setup.startSave; await KPStore.set('setup', setup); showStarter();
+    startSave = null; await KPStore.del('startSave'); showStarter();
     $('starterHint').className = 'hint'; $('starterHint').textContent = 'Starter save removed. New runs start from the beginning.';
   });
   // A brand-new run has no save file yet: copy the starter save in, then restart so the title screen offers Continue.
   function seedStarter() {
-    if (!setup.startSave) return;
+    if (!startSave) return;
     try {
       if (run.seeded) return;
       const gm = EJS_emulator.gameManager, path = gm.getSaveFilePath();
       let cp = '';
       for (const part of path.split('/').slice(0, -1)) { if (!part) continue; cp += '/' + part; if (!gm.FS.analyzePath(cp).exists) gm.FS.mkdir(cp); }
       if (gm.FS.analyzePath(path).exists) gm.FS.unlink(path);
-      gm.FS.writeFile(path, new Uint8Array(setup.startSave));
+      gm.FS.writeFile(path, new Uint8Array(startSave));
       gm.loadSaveFiles();
       gm.restart();
       run.seeded = true;
-      KPStore.set('run', run).catch(() => {});
+      saveRunMeta();
       toast('Started from your saved intro. Pick Continue on the title screen.');
     } catch (err) { console.error('Starter save failed', err); }
   }
@@ -347,7 +352,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // ---- Emulator ----
   window.EJS_player = '#game';
   window.EJS_core = setup.core;
-  window.EJS_gameUrl = new Blob([run.rom]);
+  window.EJS_gameUrl = new Blob([runRom]);
   window.EJS_gameName = 'kp-run-' + run.id;
   window.EJS_pathtodata = EJS_VERSION_PATH;
   // A tap on the start button counts as a user gesture, so iPhone lets the game play sound and it never auto-pauses.
@@ -376,7 +381,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_onGameStart = () => {
     $('msg').hidden = true;
     // Only a run's very first launch gets the starter save; later launches (Continue) keep the run's own progress.
-    if (!run.launched) { seedStarter(); run.launched = true; KPStore.set('run', run).catch(() => {}); }
+    if (!run.launched) { seedStarter(); run.launched = true; saveRunMeta(); }
     setTimeout(track, 5000);
     setTimeout(startCloud, 8000);
     // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.

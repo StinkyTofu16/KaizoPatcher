@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=507639bedd">
+<link rel="manifest" href="manifest.webmanifest?v=9287a1937a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -112,9 +112,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
   </section>
 </div>
-<script src="kp-store.js?v=507639bedd"></script>
-<script src="kp-random.js?v=507639bedd"></script>
-<script src="kp-gen3.js?v=507639bedd"></script>
+<script src="kp-store.js?v=9287a1937a"></script>
+<script src="kp-random.js?v=9287a1937a"></script>
+<script src="kp-gen3.js?v=9287a1937a"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -133,20 +133,28 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   };
   async function doNewRun(su) {
     $('starting').hidden = false; $('main').hidden = true; $('settings').hidden = true; $('installTip').hidden = true;
-    let stage = 'randomizing';
+    let stage = 'loading';
     try {
-      const out = await KPRandom.run(new Uint8Array(su.rom), su.ext, su.presetFile, (t) => { st.textContent = t; });
+      st.textContent = 'Loading your game\u2026';
+      const base = await withTimeout(KPStore.get('setupRom'), 30000);
+      if (!base) throw new Error('Your game file is missing from this phone. Set it up again in the patcher.');
+      stage = 'randomizing';
+      const out = await KPRandom.run(new Uint8Array(base), su.ext, su.presetFile, (t) => { st.textContent = t; });
       st.textContent = 'Saving\u2026'; stage = 'saving';
       const id = (su.runs || 0) + 1;
-      const rec = { id, preset: su.presetName, created: Date.now(), rom: await out.rom.arrayBuffer(), log: out.log ? await out.log.arrayBuffer() : null };
-      await KPStore.set('run', rec);
+      const log = out.log ? await out.log.arrayBuffer() : null;
+      await KPStore.set('runRom', await out.rom.arrayBuffer());
+      if (log) await KPStore.set('runLog', log); else await KPStore.del('runLog');
+      await KPStore.set('run', { id, preset: su.presetName, created: Date.now(), hasLog: !!log });
       su.runs = id;
       if (!su.key) su.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await KPStore.set('setup', su);
       location.replace('game.html');
     } catch (e) {
       console.error(e);
-      fail(stage === 'saving' ? 'Couldn\u2019t save the new run on this phone. It may be low on storage.' : ((e && e.message) || 'Something went wrong while randomizing.'), e);
+      fail(stage === 'saving' ? 'Couldn\u2019t save the new run on this phone. It may be low on storage.'
+        : stage === 'loading' ? 'Couldn\u2019t load your game from this phone\u2019s storage. Close the app completely, reopen it, and try again.'
+        : ((e && e.message) || 'Something went wrong while randomizing.'), e);
     }
   }
 
@@ -155,6 +163,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     history.replaceState(null, '', 'play.html');
     $('starting').hidden = false;
     try {
+      await withTimeout(KPStore.migrate(), 30000);
       setup = await withTimeout(KPStore.get('setup'), 30000);
       try { sessionStorage.removeItem('kp-newrun-retry'); } catch (e) {}
     } catch (e) {
@@ -169,7 +178,12 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     return;
   }
 
-  try { setup = await withTimeout(KPStore.get('setup'), 15000); run = await withTimeout(KPStore.get('run'), 15000); } catch (e) { setup = null; }
+  let startSave = null;
+  try {
+    await withTimeout(KPStore.migrate(), 30000);
+    setup = await withTimeout(KPStore.get('setup'), 15000); run = await withTimeout(KPStore.get('run'), 15000);
+    startSave = await withTimeout(KPStore.get('startSave'), 15000);
+  } catch (e) { setup = null; }
   if (!setup) { $('empty').hidden = false; return; }
 
   $('main').hidden = false; $('settings').hidden = false;
@@ -181,21 +195,21 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     $('continueBtn').textContent = run ? 'Continue run #' + run.id : 'Continue run';
     $('newBtn').className = run ? 'secondary' : 'primary';
     $('newBtn').textContent = run ? 'New run' : 'Start first run';
-    $('logBtn').hidden = !(run && run.log);
-    $('introSkip').hidden = !setup.startSave;
+    $('logBtn').hidden = !(run && run.hasLog);
+    $('introSkip').hidden = !startSave;
   };
-  const gameCode = String.fromCharCode(...new Uint8Array(setup.rom, 0xAC, 4));
+  const gameCode = setup.code || '';
   // A starter save must be from before the first Pokémon; otherwise every run would start with that same Pokémon.
   const starterIsClean = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !p || p.party.length === 0; } catch (e) { return true; } };
   let starterNote = '';
-  if (setup.startSave && !starterIsClean(setup.startSave)) {
-    delete setup.startSave; await KPStore.set('setup', setup);
+  if (startSave && !starterIsClean(startSave)) {
+    startSave = null; await KPStore.del('startSave');
     starterNote = 'Your starter save had a Pok\u00e9mon in it, so new runs kept starting with the same Pok\u00e9mon. It\u2019s been removed. Next run, save in your room before getting a Pok\u00e9mon.';
   }
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=507639bedd')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=9287a1937a')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
@@ -214,9 +228,10 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     armed = true; $('newBtn').textContent = 'Tap again to end run #' + run.id;
     armTimer = setTimeout(() => { armed = false; render(); }, 4000);
   });
-  $('logBtn').addEventListener('click', () => {
-    if (!run || !run.log) return;
-    const url = URL.createObjectURL(new Blob([run.log], { type: 'text/plain' }));
+  $('logBtn').addEventListener('click', async () => {
+    if (!run || !run.hasLog) return;
+    const log = await KPStore.get('runLog'); if (!log) return;
+    const url = URL.createObjectURL(new Blob([log], { type: 'text/plain' }));
     const a = document.createElement('a'); a.href = url; a.download = setup.baseName + ' run ' + run.id + ' spoiler log.txt';
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
   });
