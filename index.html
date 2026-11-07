@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=9287a1937a">
+<link rel="manifest" href="manifest.webmanifest?v=31e56e5356">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -504,7 +504,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=9287a1937a"></script>
+<script src="kp-store.js?v=31e56e5356"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -887,7 +887,7 @@ $('playBtn').addEventListener('click', async () => {
     await KPStore.set('setupRom', romBuf);
     await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: FAMILY[id.ids[0]],
       code: String.fromCharCode(...new Uint8Array(romBuf, 0xAC, 4)), presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, runs: 0 });
-    for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress']) await KPStore.del(k);
+    for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress', 'spare', 'spareRom', 'spareLog']) await KPStore.del(k);
     location.href = 'play.html?new=1';
   } catch (e) {
     console.error(e); setRand('Couldn\u2019t save the game on this device: ' + ((e && e.message) || e), 'bad');

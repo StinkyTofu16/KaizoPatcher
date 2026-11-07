@@ -10,15 +10,32 @@ import java.util.List;
  *   --tmp=DIR      writable temp directory
  *   --log=FILE     send stdout/stderr to FILE
  *   --result=FILE  write the exit code to FILE when done
+ *   --clean=DIR    first delete kp-* files and kptmp contents left in DIR by earlier runs
  */
 public class KpCli {
+    private static void deleteTree(File f) {
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) deleteTree(k);
+        f.delete();
+    }
+
     public static void main(String[] args) throws Exception {
         String result = null;
         List<String> rest = new ArrayList<>();
         PrintStream origOut = System.out, origErr = System.err;
         PrintStream log = null;
         for (String a : args) {
-            if (a.startsWith("--tmp=")) {
+            if (a.startsWith("--clean=")) {
+                // Delete files left by earlier runs (outputs, logs, temp) so browser storage doesn't grow every run.
+                File dir = new File(a.substring(8));
+                File[] old = dir.listFiles();
+                if (old != null) for (File f : old) {
+                    if (f.isFile() && f.getName().startsWith("kp-")) f.delete();
+                }
+                File tmpDir = new File(dir, "kptmp");
+                File[] tmps = tmpDir.listFiles();
+                if (tmps != null) for (File f : tmps) deleteTree(f);
+            } else if (a.startsWith("--tmp=")) {
                 File t = new File(a.substring(6));
                 t.mkdirs();
                 System.setProperty("java.io.tmpdir", t.getPath());

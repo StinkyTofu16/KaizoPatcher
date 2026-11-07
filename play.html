@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9287a1937a">
+<link rel="manifest" href="manifest.webmanifest?v=31e56e5356">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -71,6 +71,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="game" id="startTitle">Starting a new run…</p>
     <div class="bar" id="startBar"><i></i></div>
     <p class="status" id="startStatus" aria-live="polite">Loading your game…</p>
+    <button class="primary" id="playNowBtn" hidden>Play now</button>
     <div class="actions" id="startActions" hidden>
       <a class="btn primary" href="play.html?new=1">Try again</a>
       <a class="btn secondary" href="play.html">Back</a>
@@ -112,9 +113,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
   </section>
 </div>
-<script src="kp-store.js?v=9287a1937a"></script>
-<script src="kp-random.js?v=9287a1937a"></script>
-<script src="kp-gen3.js?v=9287a1937a"></script>
+<script src="kp-store.js?v=31e56e5356"></script>
+<script src="kp-random.js?v=31e56e5356"></script>
+<script src="kp-gen3.js?v=31e56e5356"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -131,25 +132,59 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     st.textContent = msg + (e ? ' (Details: ' + [e.name, e.message].filter(Boolean).join(': ') + ')' : '');
     $('startBar').hidden = true; $('startActions').hidden = false; $('startTitle').textContent = 'Couldn\u2019t start the run';
   };
+  // A spare run is made right after each new run while the randomizer is already warm (a second run takes seconds),
+  // so the next New run can start instantly without loading the randomizer at all.
+  const spareFits = (sp, su) => sp && sp.presetFile === su.presetFile && sp.setupKey === su.key && sp.code === su.code;
+  async function saveRun(su, romBuf, logBuf) {
+    const id = (su.runs || 0) + 1;
+    await KPStore.set('runRom', romBuf);
+    if (logBuf) await KPStore.set('runLog', logBuf); else await KPStore.del('runLog');
+    await KPStore.set('run', { id, preset: su.presetName, created: Date.now(), hasLog: !!logBuf });
+    su.runs = id;
+    await KPStore.set('setup', su);
+  }
   async function doNewRun(su) {
     $('starting').hidden = false; $('main').hidden = true; $('settings').hidden = true; $('installTip').hidden = true;
+    if (!su.key) { su.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await KPStore.set('setup', su); }
     let stage = 'loading';
     try {
+      // Instant path: use the spare run made last time.
+      const spare = await KPStore.get('spare');
+      if (spareFits(spare, su)) {
+        st.textContent = 'Starting your next run\u2026';
+        const romBuf = await KPStore.get('spareRom');
+        if (romBuf) {
+          stage = 'saving';
+          await saveRun(su, romBuf, await KPStore.get('spareLog') || null);
+          for (const k of ['spare', 'spareRom', 'spareLog']) await KPStore.del(k);
+          location.replace('game.html');
+          return;
+        }
+      }
+      for (const k of ['spare', 'spareRom', 'spareLog']) await KPStore.del(k);
+
       st.textContent = 'Loading your game\u2026';
       const base = await withTimeout(KPStore.get('setupRom'), 30000);
       if (!base) throw new Error('Your game file is missing from this phone. Set it up again in the patcher.');
       stage = 'randomizing';
       const out = await KPRandom.run(new Uint8Array(base), su.ext, su.presetFile, (t) => { st.textContent = t; });
       st.textContent = 'Saving\u2026'; stage = 'saving';
-      const id = (su.runs || 0) + 1;
-      const log = out.log ? await out.log.arrayBuffer() : null;
-      await KPStore.set('runRom', await out.rom.arrayBuffer());
-      if (log) await KPStore.set('runLog', log); else await KPStore.del('runLog');
-      await KPStore.set('run', { id, preset: su.presetName, created: Date.now(), hasLog: !!log });
-      su.runs = id;
-      if (!su.key) su.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      await KPStore.set('setup', su);
-      location.replace('game.html');
+      await saveRun(su, await out.rom.arrayBuffer(), out.log ? await out.log.arrayBuffer() : null);
+
+      // Make the spare while the randomizer is warm. Play now skips it.
+      let skipped = false;
+      const go = () => { skipped = true; location.replace('game.html'); };
+      $('playNowBtn').hidden = false; $('playNowBtn').onclick = go;
+      $('startTitle').textContent = 'Your run is ready';
+      st.textContent = 'Preparing your next run so it starts instantly\u2026 (or tap Play now)';
+      try {
+        const nxt = await KPRandom.run(new Uint8Array(base), su.ext, su.presetFile, () => {});
+        if (skipped) return;
+        await KPStore.set('spareRom', await nxt.rom.arrayBuffer());
+        if (nxt.log) await KPStore.set('spareLog', await nxt.log.arrayBuffer());
+        await KPStore.set('spare', { presetFile: su.presetFile, setupKey: su.key, code: su.code, created: Date.now() });
+      } catch (e) { console.warn('Spare run failed', e); }
+      if (!skipped) go();
     } catch (e) {
       console.error(e);
       fail(stage === 'saving' ? 'Couldn\u2019t save the new run on this phone. It may be low on storage.'
@@ -209,7 +244,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=9287a1937a')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=31e56e5356')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;

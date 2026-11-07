@@ -1,92 +1,85 @@
-// Small IndexedDB key-value store shared by the KaizoPatcher pages.
-// Keys: "setup" = {label, sys, core, ext, fam, presetFile, presetName, baseName, rom: ArrayBuffer, runs, ...}
-//       "run"   = {id, preset, created, rom: ArrayBuffer, log: ArrayBuffer|null, ...}
+// Storage for the KaizoPatcher pages, without IndexedDB (Safari's IndexedDB can hang on iPhone).
+//   Small details (setup, run, progress) -> localStorage as JSON: instant and synchronous.
+//   Game files (setupRom, runRom, runLog, startSave) -> Cache Storage, which handles large files reliably.
+// Same interface as before: get(key) / set(key, value) / del(key) / migrate().
 const KPStore = (() => {
-  let dbp = null;
+  const LS = 'kp:';
+  const CACHE = 'kp-files-v1';
+  const url = (k) => new URL('__kpstore/' + encodeURIComponent(k), location.href).href;
+  let cachep = null;
+  const cache = () => (cachep = cachep || caches.open(CACHE));
+  const isBinary = (v) => v instanceof ArrayBuffer || ArrayBuffer.isView(v) || v instanceof Blob;
 
-  // Safari sometimes leaves IndexedDB unresponsive on a freshly loaded page until indexedDB.databases() is called.
-  // Poke it until it answers (well-known workaround), then open, retrying an open that never completes.
-  function wakeSafari() {
-    if (!indexedDB.databases) return Promise.resolve();
-    return new Promise((res) => {
-      let done = false;
-      const finish = () => { if (!done) { done = true; clearInterval(t); res(); } };
-      const poke = () => { try { indexedDB.databases().then(finish, finish); } catch (e) { finish(); } };
-      const t = setInterval(poke, 100); poke();
-      setTimeout(finish, 1500);
-    });
+  async function get(k) {
+    let raw = null;
+    try { raw = localStorage.getItem(LS + k); } catch (e) {}
+    if (raw !== null) { try { return JSON.parse(raw); } catch (e) { return undefined; } }
+    try {
+      const res = await (await cache()).match(url(k));
+      return res ? await res.arrayBuffer() : undefined;
+    } catch (e) { return undefined; }
   }
-  function openOnce(ms) {
-    return new Promise((res, rej) => {
-      let r;
-      const timer = setTimeout(() => rej(new Error('open-timeout')), ms);
-      try { r = indexedDB.open('kaizopatcher', 1); } catch (e) { clearTimeout(timer); rej(e); return; }
-      r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('kv')) r.result.createObjectStore('kv'); };
-      r.onsuccess = () => {
-        clearTimeout(timer);
-        const db = r.result;
-        db.onversionchange = () => { db.close(); dbp = null; };
-        db.onclose = () => { dbp = null; };
-        res(db);
-      };
-      r.onerror = () => { clearTimeout(timer); rej(r.error || new Error('open-failed')); };
-      r.onblocked = () => {};
-    });
-  }
-  function open() {
-    if (dbp) return dbp;
-    dbp = (async () => {
-      let last;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        await wakeSafari();
-        try { return await openOnce(attempt === 0 ? 3000 : 5000); } catch (e) { last = e; await new Promise((r) => setTimeout(r, 300)); }
-      }
-      throw last || new Error('Storage unavailable');
-    })().catch((e) => { dbp = null; throw e; });
-    return dbp;
-  }
-  async function tx(mode, fn) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const db = await open();
-      try {
-        return await new Promise((res, rej) => {
-          const t = db.transaction('kv', mode);
-          const out = fn(t.objectStore('kv'));
-          t.oncomplete = () => res(out && 'result' in out ? out.result : undefined);
-          t.onerror = () => rej(t.error);
-          t.onabort = () => rej(t.error || new Error('Storage was full or blocked.'));
-        });
-      } catch (e) {
-        // A connection Safari closed behind our back: reopen once and retry.
-        if (attempt === 0 && e && (e.name === 'InvalidStateError' || /closing|closed/i.test(e.message || ''))) { dbp = null; continue; }
-        throw e;
-      }
+  async function set(k, v) {
+    if (isBinary(v)) {
+      const body = v instanceof Blob ? v : new Blob([v]);
+      await (await cache()).put(url(k), new Response(body, { headers: { 'Content-Type': 'application/octet-stream' } }));
+      try { localStorage.removeItem(LS + k); } catch (e) {}
+    } else {
+      try { localStorage.setItem(LS + k, JSON.stringify(v)); }
+      catch (e) { throw new Error('This phone’s storage for the site is full.'); }
+      try { await (await cache()).delete(url(k)); } catch (e) {}
     }
   }
-  const get = (k) => tx('readonly', (s) => s.get(k));
-  const set = (k, v) => tx('readwrite', (s) => { s.put(v, k); });
-  const del = (k) => tx('readwrite', (s) => { s.delete(k); });
+  async function del(k) {
+    try { localStorage.removeItem(LS + k); } catch (e) {}
+    try { await (await cache()).delete(url(k)); } catch (e) {}
+  }
 
-  // Big binaries live under their own keys so small changes never rewrite a 16 MB game file:
-  //   setup (details) + setupRom (base game) + startSave (intro save)
-  //   run (details)   + runRom (randomized game) + runLog (spoiler log)
-  // Older versions kept the game inside setup/run; move it out once.
+  // One-time move of data saved by older versions (IndexedDB "kaizopatcher"). Best effort with a short time limit:
+  // if Safari's IndexedDB is stuck, the old data is skipped and the player sets the game up again.
   async function migrate() {
-    const s = await get('setup');
-    if (s && (s.rom || s.startSave)) {
-      if (s.rom) { if (!s.code) s.code = String.fromCharCode(...new Uint8Array(s.rom, 0xAC, 4)); await set('setupRom', s.rom); }
-      if (s.startSave) await set('startSave', s.startSave);
-      delete s.rom; delete s.startSave;
-      await set('setup', s);
+    try { if (localStorage.getItem(LS + '_migrated')) return; } catch (e) { return; }
+    const finish = () => { try { localStorage.setItem(LS + '_migrated', '1'); } catch (e) {} };
+    if (typeof indexedDB === 'undefined') { finish(); return; }
+    const readAll = () => new Promise((res, rej) => {
+      const r = indexedDB.open('kaizopatcher', 1);
+      r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) {} res(null); };
+      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const db = r.result;
+        if (!db.objectStoreNames.contains('kv')) { db.close(); res(null); return; }
+        const out = {}; const t = db.transaction('kv', 'readonly'); const st = t.objectStore('kv');
+        const keys = ['setup', 'setupRom', 'startSave', 'run', 'runRom', 'runLog'];
+        for (const k of keys) { const q = st.get(k); q.onsuccess = () => { if (q.result !== undefined) out[k] = q.result; }; }
+        t.oncomplete = () => { db.close(); res(out); };
+        t.onerror = () => { db.close(); rej(t.error); };
+      };
+    });
+    let old = null;
+    try { old = await Promise.race([readAll(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))]); } catch (e) { old = null; }
+    if (old) {
+      try {
+        const s = old.setup, r = old.run;
+        if (s) {
+          const rom = old.setupRom || s.rom, ss = old.startSave || s.startSave;
+          if (rom) { if (!s.code) s.code = String.fromCharCode(...new Uint8Array(rom, 0xAC, 4)); await set('setupRom', rom); }
+          if (ss) await set('startSave', ss);
+          delete s.rom; delete s.startSave;
+          if (rom) await set('setup', s);
+        }
+        if (r) {
+          const rom = old.runRom || r.rom, log = old.runLog || r.log;
+          if (rom) {
+            await set('runRom', rom);
+            if (log) await set('runLog', log);
+            r.hasLog = !!log; delete r.rom; delete r.log;
+            await set('run', r);
+          }
+        }
+      } catch (e) { console.warn('Migration incomplete', e); }
     }
-    const r = await get('run');
-    if (r && (r.rom || r.log)) {
-      if (r.rom) await set('runRom', r.rom);
-      if (r.log) await set('runLog', r.log);
-      r.hasLog = !!r.log;
-      delete r.rom; delete r.log;
-      await set('run', r);
-    }
+    finish();
+    try { indexedDB.deleteDatabase('kaizopatcher'); } catch (e) {}
   }
   return { get, set, del, migrate };
 })();
