@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=3f70f81700">
+<link rel="manifest" href="manifest.webmanifest?v=adc200388d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -206,11 +206,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=3f70f81700"></script>
-<script src="kp-config.js?v=3f70f81700"></script>
-<script src="kp-gen3.js?v=3f70f81700"></script>
-<script src="kp-cloud.js?v=3f70f81700"></script>
-<script src="kp-tracker.js?v=3f70f81700"></script>
+<script src="kp-store.js?v=adc200388d"></script>
+<script src="kp-config.js?v=adc200388d"></script>
+<script src="kp-gen3.js?v=adc200388d"></script>
+<script src="kp-cloud.js?v=adc200388d"></script>
+<script src="kp-tracker.js?v=adc200388d"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -239,7 +239,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=3f70f81700').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=adc200388d').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -383,7 +383,14 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // ---- Tracker: lead Pokémon, stats, moves and the opponent, read from the game every 1.5 s ----
   let tracker = null, trackerOn = true, lastTrk = '', pendingKey = '';
   try { trackerOn = localStorage.getItem('kp:tracker') !== 'off'; } catch (e) {}
-  try { tracker = KPTracker.load(runRom); } catch (err) { console.warn('Tracker unavailable', err); }
+  // The tracker reads the game file only once the game is running, so nothing extra happens while the player loads.
+  let trackerTried = false;
+  function ensureTracker() {
+    if (trackerTried) return;
+    trackerTried = true;
+    try { tracker = KPTracker.load(runRom); } catch (err) { console.warn('Tracker unavailable', err); }
+    applyTracker();
+  }
   const TYPEC = { Normal: '#9a9a78', Fire: '#e8803a', Water: '#5c8ae8', Grass: '#6abf4b', Electric: '#e8c430', Ice: '#80cfcf', Fighting: '#b8352c', Poison: '#9a46a0',
     Ground: '#d8b45a', Flying: '#9a86e8', Psychic: '#ee5888', Bug: '#a2b220', Rock: '#b49c3a', Ghost: '#6a5494', Dragon: '#6a3cf0', Dark: '#6a5446', Steel: '#b4b4cc', '???': '#68a090' };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -456,12 +463,13 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   }
   function applyTracker() {
     document.body.classList.toggle('kp-trk', !!(trackerOn && tracker));
-    $('trkState').textContent = !tracker ? 'Not available for this game' : trackerOn ? 'On' : 'Off';
+    $('trkState').textContent = trackerTried && !tracker ? 'Not available for this game' : trackerOn ? 'On' : 'Off';
     lastTrk = ''; renderTracker();
   }
   function pollTracker() {
-    if (!trackerOn || !tracker || document.hidden) return;
+    if (!trackerOn || document.hidden) return;
     const e = emu(); if (!e) return;
+    ensureTracker(); if (!tracker) return;
     try {
       const st = e.gameManager.getState(); if (!st || !st.length) return;
       const d = tracker.read(st) || { mon: null, foe: null };
@@ -477,7 +485,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   setInterval(pollTracker, 1500);
   addEventListener('resize', () => { lastTrk = ''; renderTracker(); });
   $('trkToggle').addEventListener('click', () => {
-    if (!tracker) return;
+    if (trackerTried && !tracker) return;
     trackerOn = !trackerOn;
     try { localStorage.setItem('kp:tracker', trackerOn ? 'on' : 'off'); } catch (e) {}
     applyTracker(); pollTracker();
@@ -621,6 +629,23 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   }, 5);
   setTimeout(() => clearInterval(cfgPoll), 120000);
   setTimeout(() => { if (!$('msg').classList.contains('bad')) $('msg').hidden = true; }, 4000);
+  // If the player stalls after Tap to play (e.g. stuck at "Decompress Game Core 99%", when iPhone Safari's storage
+  // hangs), offer a Reload button instead of leaving the screen stuck.
+  let gameStarted = false, stallTimer = null;
+  const prevStart = window.EJS_onGameStart;
+  window.EJS_onGameStart = (...a) => { gameStarted = true; clearTimeout(stallTimer); const s = document.getElementById('kpStall'); if (s) s.remove(); return prevStart && prevStart(...a); };
+  document.addEventListener('click', (ev) => {
+    if (gameStarted || stallTimer || !ev.target.closest || !ev.target.closest('.ejs_start_button')) return;
+    stallTimer = setTimeout(() => {
+      if (gameStarted) return;
+      const box = document.createElement('div'); box.id = 'kpStall';
+      box.style.cssText = 'position:absolute;inset:0;z-index:1600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:rgba(0,0,0,.75);color:#e4e9f0';
+      box.innerHTML = '<p style="margin:0;max-width:320px">The game player is taking longer than usual to start. Reloading usually fixes it. If it keeps happening, close the app completely and open it again.</p>';
+      const btn = document.createElement('button'); btn.className = 'barbtn'; btn.textContent = 'Reload'; btn.style.pointerEvents = 'auto';
+      btn.onclick = () => location.reload();
+      box.append(btn); document.querySelector('.gamebox').append(box);
+    }, 40000);
+  }, true);
 })();
 </script>
 </body>
