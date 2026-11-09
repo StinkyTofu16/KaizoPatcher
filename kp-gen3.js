@@ -146,7 +146,9 @@ const KPGen3 = (() => {
       const pdv = new DataView(pb.buffer, pb.byteOffset, pb.byteLength);
       for (let i = 0; i < countB[0]; i++) { const m = monAt(pb, pdv, i * 100); if (!m) { party = []; break; } party.push(m); }
     }
-    if (!party.length) {
+    // A count of 0 means no Pokémon yet: don't search memory, which can hold unrelated Pokémon (e.g. from the intro).
+    // Search only when the count is impossible, i.e. the address doesn't fit this ROM.
+    if (!party.length && (!countB || countB[0] > 6)) {
       for (let off = 0; off + 100 <= ew.length && !party.length; off += 4) {
         const first = monAt(ew, edv, off); if (!first) continue;
         const run = [first];

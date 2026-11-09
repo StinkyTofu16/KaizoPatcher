@@ -182,13 +182,19 @@ const KPTracker = (() => {
         };
       }
 
-      // Lead Pokémon: first slot of the party at its known address, or the first valid run found in EWRAM.
+      // Lead Pokémon: first slot of the party at its known address. A party count of 0 means no Pokémon yet
+      // (memory can hold other Pokémon data then, e.g. from the intro, which must not be shown as yours).
+      // Only if the count is impossible (address doesn't fit this ROM) is EWRAM searched for a party.
       let lead = null;
       const cnt = view(A.partyCount, 1);
       if (cnt && cnt[0] >= 1 && cnt[0] <= 6) lead = mon(A.party);
-      if (!lead) {
+      else if (!cnt || cnt[0] > 6) {
         const ew = mem.ewram;
-        for (let off = 0; off + 100 <= ew.length && !lead; off += 4) lead = mon(0x02000000 + off);
+        for (let off = 0; off + 104 <= ew.length && !lead; off += 4) {
+          // A real party is preceded by its count (1-6) and padding.
+          if (ew[off] < 1 || ew[off] > 6 || ew[off + 1] || ew[off + 2] || ew[off + 3]) continue;
+          lead = mon(0x02000000 + off + 4);
+        }
       }
 
       // Healing items in the bag.
