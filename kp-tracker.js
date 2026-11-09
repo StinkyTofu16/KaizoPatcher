@@ -204,20 +204,14 @@ const KPTracker = (() => {
         };
       }
 
-      // The player's party at its known address. A party count of 0 means no Pokémon yet (memory can then hold
-      // other Pokémon data, e.g. from the intro, which must not be shown as yours). Only if the count is impossible
-      // (the address doesn't fit this ROM) is EWRAM searched for a party.
-      let party = [], partyBase = 0;
+      // The player's party at its known address. A party count of 0 means no Pokémon yet: memory can then hold
+      // other Pokémon data (e.g. from the intro), which must never be shown as yours, so memory isn't searched.
+      // Only the real party slots count, and only if every slot the count claims holds a valid Pokémon.
+      let party = [];
       const cnt = view(A.partyCount, 1);
-      if (cnt && cnt[0] >= 1 && cnt[0] <= 6) partyBase = A.party;
-      else if (!cnt || cnt[0] > 6) {
-        const ew = mem.ewram;
-        for (let off = 0; off + 104 <= ew.length && !partyBase; off += 4) {
-          if (ew[off] < 1 || ew[off] > 6 || ew[off + 1] || ew[off + 2] || ew[off + 3]) continue;
-          if (mon(0x02000000 + off + 4)) partyBase = 0x02000000 + off + 4;
-        }
+      if (cnt && cnt[0] >= 1 && cnt[0] <= 6) {
+        for (let k = 0; k < cnt[0]; k++) { const m = mon(A.party + 100 * k); if (!m) { party = []; break; } party.push(m); }
       }
-      if (partyBase) for (let k = 0; k < 6; k++) { const m = mon(partyBase + 100 * k); if (!m) break; party.push(m); }
       let lead = party[0] || null;
 
       // In battle: find the Pokémon actually sent out on each side. Gen 3 keeps the party order during battle and keeps
