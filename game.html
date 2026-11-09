@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=e10632a091">
+<link rel="manifest" href="manifest.webmanifest?v=5148217824">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -231,11 +231,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) later(); });
 })();
 </script>
-<script src="kp-store.js?v=e10632a091"></script>
-<script src="kp-config.js?v=e10632a091"></script>
-<script src="kp-gen3.js?v=e10632a091"></script>
-<script src="kp-cloud.js?v=e10632a091"></script>
-<script src="kp-tracker.js?v=e10632a091"></script>
+<script src="kp-store.js?v=5148217824"></script>
+<script src="kp-config.js?v=5148217824"></script>
+<script src="kp-gen3.js?v=5148217824"></script>
+<script src="kp-cloud.js?v=5148217824"></script>
+<script src="kp-tracker.js?v=5148217824"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -264,7 +264,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=e10632a091').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=5148217824').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -427,9 +427,9 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // Level the lead learns its next move at, and how many levels away that is.
   const nextTxt = (m, short) => m.nextMove ? '<span class="num">Lv' + m.nextMove.level + (short ? ' (+' + m.nextMove.in + ')' : ' (' + m.nextMove.in + (m.nextMove.in === 1 ? ' lv' : ' lvs') + ')') + '</span>' : '<span class="num">' + (short ? 'none' : 'none left') + '</span>';
   const statOrder = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'];
-  // Stat with the nature mark (+ / −) and, in battle, its stage change (▲1 / ▼2).
+  // Stat coloured by nature (green = raised, red = lowered) and, in battle, its stage change (▲1 / ▼2).
   const stageTxt = (m, k) => { const v = m.stages && m.stages[k]; return v ? '<span class="' + (v > 0 ? 'plus' : 'minus') + '">' + (v > 0 ? '▲' : '▼') + Math.abs(v) + '</span>' : ''; };
-  const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b>' + v + (m.up === k ? '<span class="plus">+</span>' : m.down === k ? '<span class="minus">−</span>' : '') + stageTxt(m, k) + '</span>';
+  const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b><span class="' + (m.up === k ? 'plus' : m.down === k ? 'minus' : '') + '">' + v + '</span>' + stageTxt(m, k) + '</span>';
   const healsTxt = (m) => m.heals ? m.heals.count + (m.heals.count === 1 ? ' heal' : ' heals') + ' (' + m.heals.pct + '%)' : '—';
   const powTxt = (mv) => mv.power === 0 ? '—' : mv.power === 1 ? 'var' : mv.power;
   const EMPTY = '<div class="empty">The tracker shows your Pokémon here once you have one.</div>';
