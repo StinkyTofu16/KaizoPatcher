@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=2572aae0e6">
+<link rel="manifest" href="manifest.webmanifest?v=98ae6a3d16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -213,6 +213,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 // Screen height for the layout. iPhone home-screen apps sometimes report a height that's too short (stuck after the app
 // comes back from the background or rotates while loading), which squashed the game into the top of the screen.
 // In that case the phone's real screen size is used instead. Android and normal browser tabs keep the reported height.
+// Don't let Safari keep this page in memory after leaving it (its back/forward cache would hold the whole emulator
+// while the next page loads, which can run the phone out of memory). If a kept copy is shown anyway, reload it.
+window.addEventListener('unload', () => {});
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 (() => {
   const fix = () => {
     let h = window.innerHeight;
@@ -231,12 +235,12 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) later(); });
 })();
 </script>
-<script src="kp-store.js?v=2572aae0e6"></script>
-<script src="kp-config.js?v=2572aae0e6"></script>
-<script src="kp-gen3.js?v=2572aae0e6"></script>
-<script src="kp-cloud.js?v=2572aae0e6"></script>
-<script src="kp-tracker.js?v=2572aae0e6"></script>
-<script src="kp-corecache.js?v=2572aae0e6"></script>
+<script src="kp-store.js?v=98ae6a3d16"></script>
+<script src="kp-config.js?v=98ae6a3d16"></script>
+<script src="kp-gen3.js?v=98ae6a3d16"></script>
+<script src="kp-cloud.js?v=98ae6a3d16"></script>
+<script src="kp-tracker.js?v=98ae6a3d16"></script>
+<script src="kp-corecache.js?v=98ae6a3d16"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -265,7 +269,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=2572aae0e6').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=98ae6a3d16').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -611,7 +615,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     clearTimeout(armTimer); clearTimeout(topTimer); saveNow();
     $('newBtn').disabled = true; $('newTopBtn').disabled = true; btn.firstChild.textContent = 'Starting… ';
     trackSoon().then(() => (KPCloud.user() ? Promise.race([KPCloud.endRun(runInfo.runKey), new Promise((r) => setTimeout(r, 1500))]) : null))
-      .catch(() => {}).finally(() => { location.href = 'play.html?new=1'; });
+      .catch(() => {}).finally(() => { location.replace('play.html?new=1'); });
   }
   let topArmed = false, topTimer = null;
   const disarmTop = () => { topArmed = false; clearTimeout(topTimer); $('newTopBtn').classList.remove('armed'); $('newTopBtn').textContent = 'New run'; };
@@ -626,7 +630,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     }
     goNewRun($('newBtn'));
   });
-  $('quitBtn').addEventListener('click', () => { saveNow(); trackSoon().finally(() => { location.href = 'play.html'; }); });
+  $('quitBtn').addEventListener('click', () => { saveNow(); trackSoon().finally(() => { location.replace('play.html'); }); });
 
   // ---- Emulator ----
   window.EJS_player = '#game';

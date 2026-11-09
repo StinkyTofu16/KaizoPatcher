@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=2572aae0e6">
+<link rel="manifest" href="manifest.webmanifest?v=98ae6a3d16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -113,9 +113,14 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
   </section>
 </div>
-<script src="kp-store.js?v=2572aae0e6"></script>
-<script src="kp-random.js?v=2572aae0e6"></script>
-<script src="kp-gen3.js?v=2572aae0e6"></script>
+<script>
+// Don't let Safari keep this page in memory after leaving it (the randomizer uses a lot), and reload a kept copy.
+window.addEventListener('unload', () => {});
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+</script>
+<script src="kp-store.js?v=98ae6a3d16"></script>
+<script src="kp-random.js?v=98ae6a3d16"></script>
+<script src="kp-gen3.js?v=98ae6a3d16"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -244,7 +249,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=2572aae0e6')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=98ae6a3d16')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
@@ -255,7 +260,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     await KPStore.set('setup', setup); render();
   });
 
-  $('continueBtn').addEventListener('click', () => { location.href = 'game.html'; });
+  $('continueBtn').addEventListener('click', () => { location.replace('game.html'); });
 
   let armed = false, armTimer = null;
   $('newBtn').addEventListener('click', () => {
