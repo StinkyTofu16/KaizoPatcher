@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=e663380d68">
+<link rel="manifest" href="manifest.webmanifest?v=ca5a630a3c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -147,10 +147,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=e663380d68"></script>
-<script src="kp-config.js?v=e663380d68"></script>
-<script src="kp-gen3.js?v=e663380d68"></script>
-<script src="kp-cloud.js?v=e663380d68"></script>
+<script src="kp-store.js?v=ca5a630a3c"></script>
+<script src="kp-config.js?v=ca5a630a3c"></script>
+<script src="kp-gen3.js?v=ca5a630a3c"></script>
+<script src="kp-cloud.js?v=ca5a630a3c"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -179,7 +179,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=e663380d68').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=ca5a630a3c').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -409,6 +409,19 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   sc.src = EJS_VERSION_PATH + 'loader.js';
   sc.onerror = () => { $('msg').className = 'msg bad'; $('msg').textContent = 'Couldn’t load the game player. Check your connection and reload.'; };
   document.body.append(sc);
+  // Turn off RetroArch's on-screen notices ("Fast-Forward." in the corner), which are drawn inside the game picture.
+  // The player writes its settings file from getRetroArchCfg() when the game starts, so add two lines to it.
+  const cfgPoll = setInterval(() => {
+    if (typeof EJS_GameManager === 'undefined') return;
+    clearInterval(cfgPoll);
+    if (EJS_GameManager.prototype.__kpCfg) return;
+    const orig = EJS_GameManager.prototype.getRetroArchCfg;
+    EJS_GameManager.prototype.getRetroArchCfg = function () {
+      return orig.call(this) + 'notification_show_fast_forward = "false"\nvideo_font_enable = "false"\n';
+    };
+    EJS_GameManager.prototype.__kpCfg = true;
+  }, 5);
+  setTimeout(() => clearInterval(cfgPoll), 120000);
   setTimeout(() => { if (!$('msg').classList.contains('bad')) $('msg').hidden = true; }, 4000);
 })();
 </script>
