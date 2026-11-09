@@ -95,8 +95,88 @@ const KPGen3 = (() => {
     return { trainer, playMinutes, badges, champion, party: party || [] };
   }
 
+  // ---------- Live game memory (from an emulator save state) ----------
+  // Addresses used by the IronMON Tracker. SaveBlock pointers live in IWRAM; RS keeps its blocks at fixed spots.
+  const LIVE = {
+    E:    { partyCount: 0x020244E9, party: 0x020244EC, sb1Ptr: 0x03005D8C, sb2Ptr: 0x03005D90 },
+    FRLG: { partyCount: 0x02024029, party: 0x02024284, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C },
+    RS:   { partyCount: 0x03004350, party: 0x03004360, sb1: 0x02025734, sb2: 0x02024EA4 },
+  };
+  // mGBA's serialized state: IWRAM at 0x19000 (32 KB), EWRAM at 0x21000 (256 KB). RetroArch may wrap it in "RASTATE" chunks.
+  function stateMemory(state) {
+    let u8 = state instanceof Uint8Array ? state : new Uint8Array(state);
+    if (u8.length > 16 && String.fromCharCode(...u8.subarray(0, 7)) === 'RASTATE') {
+      const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+      let o = 8;
+      while (o + 8 <= u8.length) {
+        const id = String.fromCharCode(...u8.subarray(o, o + 4)), size = dv.getUint32(o + 4, true);
+        if (id === 'MEM ') { u8 = u8.subarray(o + 8, o + 8 + size); break; }
+        o += 8 + size + ((8 - (size % 8)) % 8);
+      }
+    }
+    if (u8.length < 0x61000) return null;
+    return { iwram: u8.subarray(0x19000, 0x21000), ewram: u8.subarray(0x21000, 0x61000) };
+  }
+  function readLive(state, gameCode, species, fallbackSave) {
+    const fam = FAMILY[gameCode], A = LIVE[fam], L = LAYOUT[fam];
+    if (!A) return null;
+    const mem = stateMemory(state); if (!mem) return null;
+    const view = (addr, len) => {
+      const reg = addr >= 0x03000000 ? mem.iwram : mem.ewram, off = addr & (addr >= 0x03000000 ? 0x7FFF : 0x3FFFF);
+      return off + len <= reg.length ? reg.subarray(off, off + len) : null;
+    };
+    const u32 = (addr) => { const b = view(addr, 4); return b ? (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0 : 0; };
+    const ew = mem.ewram, edv = new DataView(ew.buffer, ew.byteOffset, ew.byteLength);
+    function monAt(buf, dv, m) {
+      if (m + 100 > buf.length) return null;
+      const pid = dv.getUint32(m, true), otid = dv.getUint32(m + 4, true), key = (pid ^ otid) >>> 0;
+      if (!pid && !otid) return null;
+      let sum = 0; const words = [];
+      for (let w = 0; w < 12; w++) { const v = (dv.getUint32(m + 0x20 + w * 4, true) ^ key) >>> 0; words.push(v); sum = (sum + (v & 0xFFFF) + (v >>> 16)) & 0xFFFF; }
+      if (sum !== dv.getUint16(m + 0x1C, true)) return null;
+      const sp = words[ORDERS[pid % 24].indexOf('G') * 3] & 0xFFFF, level = buf[m + 0x54];
+      if (!sp || sp > 411 || level < 1 || level > 100) return null;
+      const info = species && species[sp];
+      return { species: sp, dex: info ? info[1] : 0, name: info ? info[0] : '#' + sp, nickname: decodeText(buf, m + 8, 10), level };
+    }
+    // Party at the known address; otherwise the first run of checksum-valid 100-byte Pokémon in EWRAM.
+    let party = [];
+    const countB = view(A.partyCount, 1), pb = view(A.party, 600);
+    if (countB && pb && countB[0] >= 1 && countB[0] <= 6) {
+      const pdv = new DataView(pb.buffer, pb.byteOffset, pb.byteLength);
+      for (let i = 0; i < countB[0]; i++) { const m = monAt(pb, pdv, i * 100); if (!m) { party = []; break; } party.push(m); }
+    }
+    if (!party.length) {
+      for (let off = 0; off + 100 <= ew.length && !party.length; off += 4) {
+        const first = monAt(ew, edv, off); if (!first) continue;
+        const run = [first];
+        for (let i = 1; i < 6; i++) { const m = monAt(ew, edv, off + i * 100); if (!m) break; run.push(m); }
+        party = run;
+      }
+    }
+    // Badges and Champion from the live flags in SaveBlock1.
+    const sb1 = A.sb1 || u32(A.sb1Ptr), sb2 = A.sb2 || u32(A.sb2Ptr);
+    let badges = 0, champion = false, flagsOk = false;
+    if (sb1 >= 0x02000000 && sb1 < 0x02040000) {
+      const flags = view(sb1 + L.flags, 0x140);
+      if (flags) {
+        flagsOk = true;
+        const flag = (id) => !!(flags[id >> 3] & (1 << (id & 7)));
+        for (let i = 0; i < 8; i++) if (flag(L.badge0 + i)) badges++;
+        champion = flag(L.champ);
+      }
+    }
+    let trainer = '';
+    if (sb2 >= 0x02000000 && sb2 < 0x02040000) { const n = view(sb2, 8); if (n) trainer = decodeText(n, 0, 7); }
+    let playMinutes = 0;
+    if (sb2 >= 0x02000000 && sb2 < 0x02040000) { const t = view(sb2 + 0x0E, 3); if (t) playMinutes = (t[0] | (t[1] << 8)) * 60 + t[2]; }
+    if (!flagsOk && fallbackSave) { const f = read(fallbackSave, gameCode, species); if (f) { badges = f.badges; champion = f.champion; trainer = trainer || f.trainer; } }
+    if (!party.length && !flagsOk) return null;
+    return { trainer, playMinutes, badges, champion, party, live: true };
+  }
+
   // Ranking score: Champion counts as a 9th badge; highest party level breaks ties.
   function score(p) { if (!p) return 0; const top = Math.max(0, ...p.party.map((x) => x.level)); return (p.champion ? 9 : p.badges) * 1000 + top; }
-  return { read, score, decodeText };
+  return { read, readLive, score, decodeText };
 })();
 if (typeof module !== 'undefined') module.exports = KPGen3;

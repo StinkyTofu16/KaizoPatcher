@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher Leaderboard</title>
-<link rel="manifest" href="manifest.webmanifest?v=afccb04130">
+<link rel="manifest" href="manifest.webmanifest?v=e663380d68">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -62,13 +62,13 @@ li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var
     <h1>Leaderboard</h1>
     <nav><a href="play.html">Play</a><a href="account.html" id="acctLink">Sign in</a></nav>
   </header>
-  <p class="hint">Each player’s best run and the team they used. Ranked by badges earned (beating the Champion ranks highest), then the highest level on the team. Runs update when a signed-in player saves in the game.</p>
+  <p class="hint">Each player’s best run and the team they used. Ranked by badges earned (beating the Champion ranks highest), then the highest level on the team. Updates live while signed-in players play.</p>
   <p class="status" id="status">Loading…</p>
   <ol id="list"></ol>
 </div>
-<script src="kp-config.js?v=afccb04130"></script>
-<script src="kp-gen3.js?v=afccb04130"></script>
-<script src="kp-cloud.js?v=afccb04130"></script>
+<script src="kp-config.js?v=e663380d68"></script>
+<script src="kp-gen3.js?v=e663380d68"></script>
+<script src="kp-cloud.js?v=e663380d68"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -78,7 +78,7 @@ li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var
   if (me) $('acctLink').textContent = me.username || 'Account';
   let rows;
   try { rows = await KPCloud.leaderboard(100); } catch (e) { console.warn(e); $('status').textContent = 'Couldn’t load the leaderboard: ' + e.message; $('status').className = 'status bad'; return; }
-  if (!rows.length) { $('status').textContent = 'No runs yet. Runs show up here once a signed-in player saves in the game after getting a Pok\u00e9mon.'; return; }
+  if (!rows.length) { $('status').textContent = 'No runs yet. Runs show up here once a signed-in player gets their first Pok\u00e9mon.'; return; }
   $('status').hidden = true;
   const ol = $('list');
   rows.forEach((r, i) => {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=afccb04130">
+<link rel="manifest" href="manifest.webmanifest?v=e663380d68">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -147,10 +147,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=afccb04130"></script>
-<script src="kp-config.js?v=afccb04130"></script>
-<script src="kp-gen3.js?v=afccb04130"></script>
-<script src="kp-cloud.js?v=afccb04130"></script>
+<script src="kp-store.js?v=e663380d68"></script>
+<script src="kp-config.js?v=e663380d68"></script>
+<script src="kp-gen3.js?v=e663380d68"></script>
+<script src="kp-cloud.js?v=e663380d68"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -179,7 +179,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=afccb04130').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=e663380d68').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -191,7 +191,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     if (!KPCloud.user()) { el.className = 'hint'; el.textContent = 'Not signed in, so this run isn\u2019t on the leaderboard. Sign in from the Account page.'; return; }
     if (st.state === 'ok') { const m = Math.round((Date.now() - st.at) / 60000); el.className = 'hint ok'; el.textContent = 'Leaderboard updated ' + (m < 1 ? 'just now' : m + ' min ago') + '.'; return; }
     if (st.state === 'error') { el.className = 'hint'; el.textContent = 'Leaderboard didn\u2019t update: ' + st.error; return; }
-    el.className = 'hint'; el.textContent = 'Leaderboard updates after you save in the game.';
+    el.className = 'hint'; el.textContent = 'Leaderboard updates once you have a Pok\u00e9mon.';
   }
   function startCloud() {
     cloudOn = true;
@@ -219,12 +219,16 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     try {
       e.gameManager.saveSaveFiles();
       const data = e.gameManager.getSaveFile(false);
-      if (!data || !data.length) return null;
-      const p = KPGen3.read(data, gameCode, species);
+      const fromSave = data && data.length ? KPGen3.read(data, gameCode, species) : null;
+      // Live game memory (like the IronMON Tracker), so progress shows without saving in the game.
+      let live = null;
+      try { const st = e.gameManager.getState(); if (st && st.length) live = KPGen3.readLive(st, gameCode, species, data); } catch (err) { console.warn('Live read failed', err); }
+      const p = live || fromSave;
       if (!p) return null;
       showProgress(p);
       await KPStore.set('progress', { runKey: runInfo.runKey, ...p });
-      if (!startSave && p.trainer && p.party.length === 0) {
+      // The intro save: the first in-game save made before getting a Pokémon.
+      if (!startSave && fromSave && fromSave.trainer && fromSave.party.length === 0) {
         startSave = data.slice().buffer;
         await KPStore.set('startSave', startSave);
         showStarter();
@@ -232,12 +236,13 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
         if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch(() => {});
       }
       if (cloudOn) KPCloud.recordProgress(runInfo, p).catch((err) => console.warn(err)).finally(showSync);
-      if (cloudOn && KPCloud.user()) {
+      if (cloudOn && KPCloud.user() && data && data.length) {
         if (Date.now() - lastBackup > 120000) { lastBackup = Date.now(); KPCloud.backupSaves({ current: { runKey: runInfo.runKey, data: data.slice() } }).catch((err) => console.warn(err)); }
       }
       return p;
     } catch (err) { console.warn('Progress read failed', err); return null; }
   }
+
   setInterval(track, 20000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) track(); });
   const trackSoon = () => Promise.race([track(), new Promise((r) => setTimeout(r, 1500))]);
