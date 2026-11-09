@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9de8afe9d6">
+<link rel="manifest" href="manifest.webmanifest?v=56cbd5c996">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -87,13 +87,20 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 
 /* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
-  /* Side columns only as wide as needed: at least 112px, or whatever is left beside a full-height 3:2 screen. */
-  #game { --zone: 112px; --pad-bottom: 44px; --side: max(116px, calc(50% - 75dvh)); }
-  #game .ejs_virtualGamepad_left { left: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
-  #game .ejs_virtualGamepad_right { right: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
+  /* See-through controller: the game picture fills the full height and the controls sit over its edges at 40%.
+     D-pad 126px (zone fills with it), A/B zone 124px, both raised ~28px above Select/Start, L/R in the top corners. */
+  #game { --zone: 124px; --pad-bottom: 72px; --a: .4; }
+  #game .ejs_virtualGamepad_left { width: 126px !important; height: 126px !important; left: 6px !important; bottom: 71px !important; }
+  #game .ejs_virtualGamepad_right { right: 6px !important; }
   #game .b_a, #game .b_b { width: 46% !important; height: 46% !important; }
-  /* Narrow the game image so the controls get their own columns instead of covering the screen. */
-  #game .ejs_canvas { position: absolute; top: 0; bottom: 0; left: var(--side); width: calc(100% - 2 * var(--side)) !important; height: 100% !important; }
+  #game .b_select, #game .b_start { top: calc(100% + 40px) !important; }
+  #game .b_l, #game .b_r { position: fixed !important; top: 48px !important; width: 64px !important; height: 34px !important; }
+  #game .b_l { left: max(10px, env(safe-area-inset-left, 0px)) !important; }
+  #game .b_r { right: max(10px, env(safe-area-inset-right, 0px)) !important; left: auto !important; }
+  #game .ejs_virtualGamepad_button { background: rgba(8, 10, 14, var(--a)) !important; border-color: rgba(255, 255, 255, .65) !important; color: rgba(255, 255, 255, .8) !important; }
+  #game .ejs_virtualGamepad_button_down { background: rgba(125, 155, 255, .75) !important; }
+  #game .ejs_dpad_main { opacity: 1 !important; }
+  #game .ejs_dpad_bar { background: rgba(8, 10, 14, var(--a)) !important; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .65); }
   .runtag { display: inline; }
   .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; background: transparent; pointer-events: none; padding-top: 8px;
     padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
@@ -147,10 +154,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=9de8afe9d6"></script>
-<script src="kp-config.js?v=9de8afe9d6"></script>
-<script src="kp-gen3.js?v=9de8afe9d6"></script>
-<script src="kp-cloud.js?v=9de8afe9d6"></script>
+<script src="kp-store.js?v=56cbd5c996"></script>
+<script src="kp-config.js?v=56cbd5c996"></script>
+<script src="kp-gen3.js?v=56cbd5c996"></script>
+<script src="kp-cloud.js?v=56cbd5c996"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -179,7 +186,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=9de8afe9d6').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=56cbd5c996').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
