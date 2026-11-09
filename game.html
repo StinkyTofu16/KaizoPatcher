@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=778b041eb9">
+<link rel="manifest" href="manifest.webmanifest?v=e10632a091">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -98,6 +98,9 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .trk .mv2 .dot { width: 6px; height: 6px; }
 .trk .mv2 .l2 { display: flex; gap: 6px; padding-left: 10px; }
 #trkL, #trkR { display: none; }
+#trkR, #trkU { pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.trk .seen { color: #98a3b3; font-style: italic; }
+.trk .tabhint { color: #7f8a99; font-size: 8.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .lrbtn { display: none; }
 
 /* Menu sheet */
@@ -228,11 +231,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) later(); });
 })();
 </script>
-<script src="kp-store.js?v=778b041eb9"></script>
-<script src="kp-config.js?v=778b041eb9"></script>
-<script src="kp-gen3.js?v=778b041eb9"></script>
-<script src="kp-cloud.js?v=778b041eb9"></script>
-<script src="kp-tracker.js?v=778b041eb9"></script>
+<script src="kp-store.js?v=e10632a091"></script>
+<script src="kp-config.js?v=e10632a091"></script>
+<script src="kp-gen3.js?v=e10632a091"></script>
+<script src="kp-cloud.js?v=e10632a091"></script>
+<script src="kp-tracker.js?v=e10632a091"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -261,7 +264,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=778b041eb9').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=e10632a091').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -442,10 +445,16 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   }
   function sideRight(d) {
     const m = d.mon; if (!m) return '';
+    if (movesView === 'foe' && d.foe) {
+      const seen = foeSeen(d.foe), rows = seen.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
+        + '<div class="l2"><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span><span class="num">' + mv.acc + '%</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div></div>');
+      for (let i = seen.length; i < 4; i++) rows.push('<div class="mv2"><div class="l1"><span class="mn seen">? not seen yet</span></div></div>');
+      return '<div class="tabhint">' + esc(d.foe.name) + '\u2019s moves</div>' + rows.join('');
+    }
     return m.moves.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
       + '<div class="l2"><span class="num">' + mv.ppLeft + 'pp</span><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span>' + effTxt(mv.eff) + '</div></div>').join('')
       + '<div class="ai"><span class="k2">Next</span> ' + nextTxt(m, true) + '</div>'
-      + (d.foe ? '<div class="ai"><span class="k2">Foe</span> ' + esc(d.foe.name) + ' <span class="lv">' + d.foe.level + '</span></div>' : '');
+      + (d.foe ? '<div class="ai"><span class="k2">Foe</span> ' + esc(d.foe.name) + ' <span class="lv">' + d.foe.level + '</span> \u203A</div>' : '');
   }
   function upright(d, h) {
     const m = d.mon; if (!m) return EMPTY;
@@ -453,7 +462,9 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">Lv' + m.level + '</span>' + m.types.map(tyChip).join('') + (m.status ? '<span class="st">' + m.status + '</span>' : '') + hpBar(m) + '</div>'
       + '<div class="stats">' + statOrder.slice(1).map((k) => statSpan(m, k, m.stats[k])).join('') + '<span><b class="k">BST</b>' + m.bst + '</span></div>'
       + (h >= 112 ? '<div class="stats" style="font-family:inherit"><span><b class="k">Abil</b>' + esc(m.ability || '—') + '</span><span><b class="k">Item</b>' + esc(m.item || '—') + '</span><span><b class="k">Bag</b>' + healsTxt(m) + '</span><span><b class="k">Next move</b>' + nextTxt(m) + '</span></div>' : '')
-      + '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>'
+      + (movesView === 'foe' && d.foe
+        ? '<div class="tabhint">' + esc(d.foe.name) + '\u2019s moves seen \u00b7 tap for yours</div><div class="moves">' + (() => { const seen = foeSeen(d.foe), out = seen.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div>'); for (let i = seen.length; i < 4; i++) out.push('<div class="mv"><span class="mn seen">? not seen yet</span></div>'); return out.join(''); })() + '</div>'
+        : '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>')
       + (d.foe && h >= 140 ? '<div class="foe"><span class="k2">Foe</span><b>' + esc(d.foe.name) + '</b><span class="lv">Lv' + d.foe.level + '</span></div>' : '');
   }
   // Upright, the panel fills the gap between the game picture (top, 3:2) and L/R above the controls.
@@ -468,10 +479,32 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     return h;
   }
   let lastData = { mon: null, foe: null };
+  // Tapping the moves panel switches between your moves and the opponent's moves seen so far (kept for the whole run,
+  // per species, like the IronMON Tracker).
+  let movesView = 'mine';
+  const seenKey = 'kp:seen:' + runInfo.runKey;
+  let seenMoves = {};
+  try { seenMoves = JSON.parse(localStorage.getItem(seenKey) || '{}'); } catch (e) {}
+  function noteSeen(foe) {
+    if (!foe || !foe.used || !foe.used.length) return;
+    const bag = seenMoves[foe.species] || (seenMoves[foe.species] = {});
+    let changed = false;
+    for (const mv of foe.used) if (!bag[mv.id]) { bag[mv.id] = { id: mv.id, name: mv.name, type: mv.type, power: mv.power, acc: mv.acc }; changed = true; }
+    if (changed) { try { localStorage.setItem(seenKey, JSON.stringify(seenMoves)); } catch (e) {} }
+  }
+  const foeSeen = (foe) => Object.values(seenMoves[foe.species] || {}).slice(0, 4);
+  function toggleMoves() {
+    if (!lastData.foe) { movesView = 'mine'; return; }
+    movesView = movesView === 'mine' ? 'foe' : 'mine';
+    lastTrk = ''; renderTracker();
+  }
+  $('trkR').addEventListener('click', toggleMoves);
+  $('trkU').addEventListener('click', toggleMoves);
   function renderTracker(d) {
-    if (d) lastData = d;
+    if (d) { lastData = d; noteSeen(d.foe); }
+    if (!lastData.foe) movesView = 'mine';
     const h = placeUpright();
-    const key = JSON.stringify(lastData) + '|' + Math.round(h);
+    const key = JSON.stringify(lastData) + '|' + Math.round(h) + '|' + movesView + '|' + (lastData.foe ? JSON.stringify(seenMoves[lastData.foe.species] || {}) : '');
     if (key === lastTrk) return;
     lastTrk = key;
     $('trkL').innerHTML = sideLeft(lastData); $('trkR').innerHTML = sideRight(lastData);

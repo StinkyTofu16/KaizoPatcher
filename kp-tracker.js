@@ -262,7 +262,16 @@ const KPTracker = (() => {
         };
         if (mine) lead = applyLive(mine);
         const f = theirs ? applyLive(theirs) : enemy[0];
-        if (f) foe = { name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0 };
+        if (f) foe = { species: f.species, name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0, used: [] };
+        // Moves the opponent has used: its PP for that move is below the maximum (base PP plus PP Ups).
+        if (foe && theirs) {
+          const off = theirs.off, bonus = ew[off + 0x3B];
+          for (let i = 0; i < 4; i++) {
+            const mv = move(edv.getUint16(off + 0x0C + 2 * i, true)); if (!mv) continue;
+            const max = mv.pp + Math.floor(mv.pp * ((bonus >> (2 * i)) & 3) / 5), left = ew[off + 0x24 + i];
+            if (left < max) foe.used.push({ ...mv, eff: mv.power && lead ? effectiveness(mv.type, lead.types) : null });
+          }
+        }
       }
 
       // Healing items in the bag.
