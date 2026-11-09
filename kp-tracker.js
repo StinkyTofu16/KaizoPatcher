@@ -256,12 +256,17 @@ const KPTracker = (() => {
           const stages = {};
           if (seen.get(m.pid) && raw[0] === 6) [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = raw[i] - 6; if (v && Math.abs(v) <= 6) stages[k] = v; });
           m.stages = stages;
+          // Current types (abilities like Color Change and moves like Conversion change them in battle). Trusted only
+          // when the record's ability byte is one of this species' abilities, i.e. the record is read at the right spot.
+          const info = species(m.species), t1 = ew[off + 0x21], t2 = ew[off + 0x22];
+          if (info && info.abilities.includes(ew[off + 0x20]) && t1 <= 17 && t2 <= 17 && t1 !== 9 && t2 !== 9) m.types = [...new Set([TYPES[t1], TYPES[t2]])];
           const st = ew[off + 0x4C];
           m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
           return m;
         };
         if (mine) lead = applyLive(mine);
         const f = theirs ? applyLive(theirs) : enemy[0];
+        // Effectiveness of your moves uses the opponent's current types (see applyLive).
         if (f) foe = { species: f.species, name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0, used: [] };
         // Moves the opponent has used: its PP for that move is below the maximum (base PP plus PP Ups).
         if (foe && theirs) {

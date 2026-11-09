@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=98ae6a3d16">
+<link rel="manifest" href="manifest.webmanifest?v=75bb62fdfa">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -235,12 +235,12 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) later(); });
 })();
 </script>
-<script src="kp-store.js?v=98ae6a3d16"></script>
-<script src="kp-config.js?v=98ae6a3d16"></script>
-<script src="kp-gen3.js?v=98ae6a3d16"></script>
-<script src="kp-cloud.js?v=98ae6a3d16"></script>
-<script src="kp-tracker.js?v=98ae6a3d16"></script>
-<script src="kp-corecache.js?v=98ae6a3d16"></script>
+<script src="kp-store.js?v=75bb62fdfa"></script>
+<script src="kp-config.js?v=75bb62fdfa"></script>
+<script src="kp-gen3.js?v=75bb62fdfa"></script>
+<script src="kp-cloud.js?v=75bb62fdfa"></script>
+<script src="kp-tracker.js?v=75bb62fdfa"></script>
+<script src="kp-corecache.js?v=75bb62fdfa"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -269,7 +269,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=98ae6a3d16').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=75bb62fdfa').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
