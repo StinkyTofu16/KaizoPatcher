@@ -44,7 +44,7 @@ const KPTracker = (() => {
   const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG' };
   // Known table offsets (US 1.0); each is checked, and found by searching the file if the check fails.
   const KNOWN = {
-    BPEE: { species: 0x3185C8, moveNames: 0x31977C, abilities: 0x31B6DB, moves: 0x31C898, stats: 0x3203CC, items: 0x5839A0 },
+    BPEE: { species: 0x3185C8, moveNames: 0x31977C, abilities: 0x31B6DB, moves: 0x31C898, stats: 0x3203CC, items: 0x5839A0, learnsets: 0x32937C },
   };
 
   // Gen 3 text encoding for the names we need.
@@ -103,7 +103,20 @@ const KPTracker = (() => {
         return true;
       },
     };
+    // Level-up moves: a table of 412 ROM pointers, each to a list of (level << 9 | move) ending in 0xFFFF.
+    const ptr = (o) => (rom[o] | (rom[o + 1] << 8) | (rom[o + 2] << 16) | (rom[o + 3] << 24)) >>> 0;
+    check.learnsets = (o) => {
+      if (o < 0 || o + 4 * 412 > rom.length) return false;
+      for (let i = 0; i < 412; i++) { const p = ptr(o + 4 * i); if (p < 0x08000000 || p >= 0x08000000 + rom.length) return false; }
+      for (const i of [1, 4, 7, 152, 277, 300]) {
+        let p = ptr(o + 4 * i) - 0x08000000, ok = false;
+        for (let k = 0; k < 40; k++, p += 2) { const w = rom[p] | (rom[p + 1] << 8); if (w === 0xFFFF) { ok = k > 0; break; } if ((w >> 9) > 100 || !(w & 0x1FF) || (w & 0x1FF) > 354) return false; }
+        if (!ok) return false;
+      }
+      return true;
+    };
     const search = {
+      learnsets: () => { for (let o = 0; o + 4 * 412 <= rom.length; o += 4) if (rom[o + 3] === 0x08 && rom[o + 7] === 0x08 && rom[o + 4 * 411 + 3] === 0x08 && check.learnsets(o)) return o; return -1; },
       species: () => { const p = find(rom, [...enc('BULBASAUR'), 0xFF]); return p - 11; },
       moveNames: () => { const p = find(rom, [...enc('POUND'), 0xFF]); return p - 13; },
       abilities: () => { const p = find(rom, [...enc('STENCH'), 0xFF]); return p - 13; },
@@ -141,6 +154,14 @@ const KPTracker = (() => {
       const e = T.moves + 12 * i;
       return { id: i, name: nice(nameAt(rom, T.moveNames, 13, i, 13)), power: rom[e + 1], type: TYPES[rom[e + 2]], acc: rom[e + 3], pp: rom[e + 4] };
     };
+    // Levels at which a species learns moves, from the (randomized) level-up lists.
+    const learnLevels = (sp) => {
+      if (T.learnsets < 0 || !(sp > 0 && sp < 412)) return [];
+      let p = ((rom[T.learnsets + 4 * sp] | (rom[T.learnsets + 4 * sp + 1] << 8) | (rom[T.learnsets + 4 * sp + 2] << 16)) >>> 0);
+      const out = [];
+      for (let k = 0; k < 40 && p + 1 < rom.length; k++, p += 2) { const w = rom[p] | (rom[p + 1] << 8); if (w === 0xFFFF) break; out.push(w >> 9); }
+      return out;
+    };
     const ability = (i) => (T.abilities >= 0 && i > 0 ? nice(nameAt(rom, T.abilities, 13, i, 13)) : '');
     const item = (i) => (T.items >= 0 && i > 0 && i < 377 ? nice(nameAt(rom, T.items, 44, i, 14)) : '');
     const A = LIVE[fam];
@@ -173,28 +194,67 @@ const KPTracker = (() => {
         const st = b[0x50];
         const status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
         return {
-          species: sp, name: info.name, level, types: info.types, bst: info.bst, status,
+          pid, species: sp, name: info.name, level, types: info.types, bst: info.bst, status,
           hp: [dv.getUint16(0x56, true), dv.getUint16(0x58, true)],
           stats: { HP: dv.getUint16(0x58, true), ATK: dv.getUint16(0x5A, true), DEF: dv.getUint16(0x5C, true), SPA: dv.getUint16(0x60, true), SPD: dv.getUint16(0x62, true), SPE: dv.getUint16(0x5E, true) },
           up: up === down ? '' : NATURE_STATS[up], down: up === down ? '' : NATURE_STATS[down],
           ability: ability(info.abilities[(w[M + 1] >>> 31) && info.abilities[1] ? 1 : 0]),
           item: item(w[G] >>> 16), moves,
+          nextMove: (() => { const lv = learnLevels(sp).find((x) => x > level); return lv ? { level: lv, in: lv - level } : null; })(),
         };
       }
 
-      // Lead Pokémon: first slot of the party at its known address. A party count of 0 means no Pokémon yet
-      // (memory can hold other Pokémon data then, e.g. from the intro, which must not be shown as yours).
-      // Only if the count is impossible (address doesn't fit this ROM) is EWRAM searched for a party.
-      let lead = null;
+      // The player's party at its known address. A party count of 0 means no Pokémon yet (memory can then hold
+      // other Pokémon data, e.g. from the intro, which must not be shown as yours). Only if the count is impossible
+      // (the address doesn't fit this ROM) is EWRAM searched for a party.
+      let party = [], partyBase = 0;
       const cnt = view(A.partyCount, 1);
-      if (cnt && cnt[0] >= 1 && cnt[0] <= 6) lead = mon(A.party);
+      if (cnt && cnt[0] >= 1 && cnt[0] <= 6) partyBase = A.party;
       else if (!cnt || cnt[0] > 6) {
         const ew = mem.ewram;
-        for (let off = 0; off + 104 <= ew.length && !lead; off += 4) {
-          // A real party is preceded by its count (1-6) and padding.
+        for (let off = 0; off + 104 <= ew.length && !partyBase; off += 4) {
           if (ew[off] < 1 || ew[off] > 6 || ew[off + 1] || ew[off + 2] || ew[off + 3]) continue;
-          lead = mon(0x02000000 + off + 4);
+          if (mon(0x02000000 + off + 4)) partyBase = 0x02000000 + off + 4;
         }
+      }
+      if (partyBase) for (let k = 0; k < 6; k++) { const m = mon(partyBase + 100 * k); if (!m) break; party.push(m); }
+      let lead = party[0] || null;
+
+      // In battle: find the Pokémon actually sent out on each side. Gen 3 keeps the party order during battle and keeps
+      // the active Pokémon in separate battle records (0x58 bytes: species at 0, stats 2-0x0B, PP 0x24, HP 0x28, level 0x2A,
+      // max HP 0x2C, personality 0x48, status 0x4C). Those are found by matching personality, species and level.
+      let foe = null, inBattle = false;
+      if (A.gMain) {
+        const cb = u32(A.gMain), flags = view(A.gMain + 0x439, 1);
+        inBattle = !!(cb >= 0x08000000 && cb < 0x0A000000 && flags && (flags[0] & 2));
+      }
+      if (inBattle) {
+        const enemy = []; for (let k = 0; k < 6; k++) { const m = mon(A.enemy + 100 * k); if (!m) break; enemy.push(m); }
+        const byPid = new Map(); party.forEach((m) => byPid.set(m.pid, ['p', m])); enemy.forEach((m) => byPid.set(m.pid, ['e', m]));
+        const ew = mem.ewram, edv = dvOf(ew);
+        let mine = null, theirs = null;
+        for (let off = 0; off + 0x58 <= ew.length && !(mine && theirs); off += 4) {
+          const hit = byPid.get(edv.getUint32(off + 0x48, true)); if (!hit) continue;
+          const [side, m] = hit;
+          if (edv.getUint16(off, true) !== m.species || ew[off + 0x2A] !== m.level) continue;
+          const live = { m, off };
+          if (side === 'p' && !mine) mine = live; else if (side === 'e' && !theirs) theirs = live;
+        }
+        const applyLive = ({ m, off }) => {
+          m.hp = [edv.getUint16(off + 0x28, true), edv.getUint16(off + 0x2C, true)];
+          m.stats = { HP: m.hp[1], ATK: edv.getUint16(off + 2, true), DEF: edv.getUint16(off + 4, true), SPA: edv.getUint16(off + 8, true), SPD: edv.getUint16(off + 10, true), SPE: edv.getUint16(off + 6, true) };
+          m.moves.forEach((mv, i) => { mv.ppLeft = ew[off + 0x24 + i]; });
+          // Stat stages (6 = no change): HP, ATK, DEF, SPE, SPA, SPD, ACC, EVA.
+          const stg = (i) => ew[off + 0x18 + i] - 6, stages = {};
+          [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = stg(i); if (v && Math.abs(v) <= 6) stages[k] = v; });
+          m.stages = stages;
+          const st = ew[off + 0x4C];
+          m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
+          return m;
+        };
+        if (mine) lead = applyLive(mine);
+        const f = theirs ? applyLive(theirs) : enemy[0];
+        if (f) foe = { name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0 };
       }
 
       // Healing items in the bag.
@@ -218,16 +278,6 @@ const KPTracker = (() => {
       }
       if (lead) lead.heals = heals;
 
-      // Opponent, only while a battle is on.
-      let foe = null;
-      if (A.gMain) {
-        const cb = u32(A.gMain), flags = view(A.gMain + 0x439, 1);
-        const inBattle = cb >= 0x08000000 && cb < 0x0A000000 && flags && (flags[0] & 2);
-        if (inBattle) {
-          const f = mon(A.enemy);
-          if (f) foe = { name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0 };
-        }
-      }
       if (lead && foe) lead.moves.forEach((m) => { m.eff = m.power ? effectiveness(m.type, foe.types) : null; });
       return { mon: lead, foe };
     }

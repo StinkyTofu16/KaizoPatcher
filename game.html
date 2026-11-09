@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=d9c5f9d5cf">
+<link rel="manifest" href="manifest.webmanifest?v=27d0bd50f4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -206,11 +206,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=d9c5f9d5cf"></script>
-<script src="kp-config.js?v=d9c5f9d5cf"></script>
-<script src="kp-gen3.js?v=d9c5f9d5cf"></script>
-<script src="kp-cloud.js?v=d9c5f9d5cf"></script>
-<script src="kp-tracker.js?v=d9c5f9d5cf"></script>
+<script src="kp-store.js?v=27d0bd50f4"></script>
+<script src="kp-config.js?v=27d0bd50f4"></script>
+<script src="kp-gen3.js?v=27d0bd50f4"></script>
+<script src="kp-cloud.js?v=27d0bd50f4"></script>
+<script src="kp-tracker.js?v=27d0bd50f4"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -239,7 +239,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=d9c5f9d5cf').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=27d0bd50f4').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -383,10 +383,12 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const effTxt = (e) => e == null ? '' : '<span class="eff ' + (e === 0 ? 'x0' : e > 1 ? 'x2' : e < 1 ? 'x05' : 'x1') + '">' + (e === 0 ? '×0' : e >= 4 ? '×4' : e > 1 ? '×2' : e <= .25 ? '×¼' : e < 1 ? '×½' : '×1') + '</span>';
   const hpColor = (f) => f > .5 ? '#58d080' : f > .2 ? '#f0c040' : '#f05848';
   const hpBar = (m) => { const f = m.hp[1] ? m.hp[0] / m.hp[1] : 0; return '<span class="hp"><span class="hpbar"><i style="width:' + Math.round(f * 100) + '%;background:' + hpColor(f) + '"></i></span><span class="num">' + m.hp[0] + '/' + m.hp[1] + '</span></span>'; };
-  // Opponent's HP as a bar and a percentage.
-  const foeHp = (f) => { const p = Math.max(0, Math.min(100, f.hpPct)); return '<span class="hp"><span class="hpbar"><i style="width:' + p + '%;background:' + hpColor(p / 100) + '"></i></span><span class="num">' + p + '%</span></span>'; };
+  // Level the lead learns its next move at, and how many levels away that is.
+  const nextTxt = (m, short) => m.nextMove ? '<span class="num">Lv' + m.nextMove.level + (short ? ' (+' + m.nextMove.in + ')' : ' (' + m.nextMove.in + (m.nextMove.in === 1 ? ' lv' : ' lvs') + ')') + '</span>' : '<span class="num">' + (short ? 'none' : 'none left') + '</span>';
   const statOrder = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'];
-  const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b>' + v + (m.up === k ? '<span class="plus">+</span>' : m.down === k ? '<span class="minus">−</span>' : '') + '</span>';
+  // Stat with the nature mark (+ / −) and, in battle, its stage change (▲1 / ▼2).
+  const stageTxt = (m, k) => { const v = m.stages && m.stages[k]; return v ? '<span class="' + (v > 0 ? 'plus' : 'minus') + '">' + (v > 0 ? '▲' : '▼') + Math.abs(v) + '</span>' : ''; };
+  const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b>' + v + (m.up === k ? '<span class="plus">+</span>' : m.down === k ? '<span class="minus">−</span>' : '') + stageTxt(m, k) + '</span>';
   const healsTxt = (m) => m.heals ? m.heals.count + (m.heals.count === 1 ? ' heal' : ' heals') + ' (' + m.heals.pct + '%)' : '—';
   const powTxt = (mv) => mv.power === 0 ? '—' : mv.power === 1 ? 'var' : mv.power;
   const EMPTY = '<div class="empty">The tracker shows your Pokémon here once you have one.</div>';
@@ -404,16 +406,17 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     const m = d.mon; if (!m) return '';
     return m.moves.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
       + '<div class="l2"><span class="num">' + mv.ppLeft + 'pp</span><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span>' + effTxt(mv.eff) + '</div></div>').join('')
-      + (d.foe ? '<div class="ai"><span class="k2">Foe</span> ' + esc(d.foe.name) + ' <span class="lv">' + d.foe.level + '</span></div><div class="hd">' + foeHp(d.foe) + '</div>' : '');
+      + '<div class="ai"><span class="k2">Next</span> ' + nextTxt(m, true) + '</div>'
+      + (d.foe ? '<div class="ai"><span class="k2">Foe</span> ' + esc(d.foe.name) + ' <span class="lv">' + d.foe.level + '</span></div>' : '');
   }
   function upright(d, h) {
     const m = d.mon; if (!m) return EMPTY;
     if (h < 64) return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">Lv' + m.level + '</span>' + hpBar(m) + '<span class="num">' + m.moves.map((x) => x.ppLeft).join(' · ') + ' PP</span></div>';
     return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">Lv' + m.level + '</span>' + m.types.map(tyChip).join('') + (m.status ? '<span class="st">' + m.status + '</span>' : '') + hpBar(m) + '</div>'
       + '<div class="stats">' + statOrder.slice(1).map((k) => statSpan(m, k, m.stats[k])).join('') + '<span><b class="k">BST</b>' + m.bst + '</span></div>'
-      + (h >= 112 ? '<div class="stats" style="font-family:inherit"><span><b class="k">Abil</b>' + esc(m.ability || '—') + '</span><span><b class="k">Item</b>' + esc(m.item || '—') + '</span><span><b class="k">Bag</b>' + healsTxt(m) + '</span></div>' : '')
+      + (h >= 112 ? '<div class="stats" style="font-family:inherit"><span><b class="k">Abil</b>' + esc(m.ability || '—') + '</span><span><b class="k">Item</b>' + esc(m.item || '—') + '</span><span><b class="k">Bag</b>' + healsTxt(m) + '</span><span><b class="k">Next move</b>' + nextTxt(m) + '</span></div>' : '')
       + '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>'
-      + (d.foe && h >= 140 ? '<div class="foe"><span class="k2">Foe</span><b>' + esc(d.foe.name) + '</b><span class="lv">Lv' + d.foe.level + '</span>' + foeHp(d.foe) + '</div>' : '');
+      + (d.foe && h >= 140 ? '<div class="foe"><span class="k2">Foe</span><b>' + esc(d.foe.name) + '</b><span class="lv">Lv' + d.foe.level + '</span></div>' : '');
   }
   // Upright, the panel fills the gap between the game picture (top, 3:2) and L/R above the controls.
   function placeUpright() {
