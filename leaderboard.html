@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher Leaderboard</title>
-<link rel="manifest" href="manifest.webmanifest?v=31e56e5356">
+<link rel="manifest" href="manifest.webmanifest?v=088465c993">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -41,9 +41,12 @@ li { background: var(--panel); border: 1px solid var(--line); border-radius: 12p
 li.me { border-color: var(--accent); }
 .rank { font: 700 1.3rem/1.2 var(--f-mono); font-variant-numeric: tabular-nums; color: var(--muted); grid-row: span 3; }
 li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var(--silver); } li:nth-child(3) .rank { color: var(--bronze); }
-.top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px 10px; min-width: 0; flex-wrap: wrap; }
+.top > div:first-child { flex: 1 1 140px; min-width: 0; }
 .name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
 .game { font-size: .84rem; color: var(--muted); }
+.prog { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.progtxt { font: 600 .82rem var(--f-body); color: var(--ink); white-space: nowrap; }
 .pips { display: flex; gap: 4px; align-items: center; flex: none; }
 .pip { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--line); }
 .pip.on { background: var(--accent); border-color: var(--accent); }
@@ -59,13 +62,13 @@ li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var
     <h1>Leaderboard</h1>
     <nav><a href="play.html">Play</a><a href="account.html" id="acctLink">Sign in</a></nav>
   </header>
-  <p class="hint">Each player’s best run: badges earned (beating the Champion ranks highest), then the highest level on the team. Shows the Pokémon they used.</p>
+  <p class="hint">Each player’s best run and the team they used. Ranked by badges earned (beating the Champion ranks highest), then the highest level on the team. Runs update when a signed-in player saves in the game.</p>
   <p class="status" id="status">Loading…</p>
   <ol id="list"></ol>
 </div>
-<script src="kp-config.js?v=31e56e5356"></script>
-<script src="kp-gen3.js?v=31e56e5356"></script>
-<script src="kp-cloud.js?v=31e56e5356"></script>
+<script src="kp-config.js?v=088465c993"></script>
+<script src="kp-gen3.js?v=088465c993"></script>
+<script src="kp-cloud.js?v=088465c993"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -75,7 +78,7 @@ li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var
   if (me) $('acctLink').textContent = me.username || 'Account';
   let rows;
   try { rows = await KPCloud.leaderboard(100); } catch (e) { console.warn(e); $('status').textContent = 'Couldn’t load the leaderboard: ' + e.message; $('status').className = 'status bad'; return; }
-  if (!rows.length) { $('status').textContent = 'No runs yet. Sign in and play to be the first on the board.'; return; }
+  if (!rows.length) { $('status').textContent = 'No runs yet. Runs show up here once a signed-in player saves in the game after getting a Pok\u00e9mon.'; return; }
   $('status').hidden = true;
   const ol = $('list');
   rows.forEach((r, i) => {
@@ -86,9 +89,15 @@ li:nth-child(1) .rank { color: var(--gold); } li:nth-child(2) .rank { color: var
     const name = document.createElement('div'); name.className = 'name'; name.textContent = r.username || 'Player';
     const game = document.createElement('div'); game.className = 'game'; game.textContent = (r.game || '') + ' · ' + (r.preset || '') + ' · Run #' + (r.runNo || '?');
     who.append(name, game);
-    const prog = document.createElement('div'); prog.className = 'pips';
-    if (r.champion) { const c = document.createElement('span'); c.className = 'champ'; c.textContent = 'Champion'; prog.append(c); }
-    else { prog.setAttribute('aria-label', (r.badges || 0) + ' of 8 badges'); for (let k = 0; k < 8; k++) { const p = document.createElement('span'); p.className = 'pip' + (k < (r.badges || 0) ? ' on' : ''); prog.append(p); } }
+    // How far they got: Champion or badge count, plus the highest level on the team.
+    const prog = document.createElement('div'); prog.className = 'prog';
+    const topLv = Math.max(0, ...(r.party || []).map((m) => m.level || 0));
+    const txt = document.createElement('span'); txt.className = 'progtxt';
+    txt.textContent = (r.champion ? '' : (r.badges || 0) + (r.badges === 1 ? ' badge' : ' badges') + (topLv ? ' \u00b7 ' : '')) + (topLv ? 'top Lv' + topLv : '');
+    const pips = document.createElement('div'); pips.className = 'pips';
+    if (r.champion) { const c = document.createElement('span'); c.className = 'champ'; c.textContent = 'Champion'; pips.append(c); }
+    else { pips.setAttribute('aria-hidden', 'true'); for (let k = 0; k < 8; k++) { const p = document.createElement('span'); p.className = 'pip' + (k < (r.badges || 0) ? ' on' : ''); pips.append(p); } }
+    prog.append(txt, pips);
     top.append(who, prog);
     const team = document.createElement('div'); team.className = 'team';
     for (const m of (r.party || [])) { const c = document.createElement('span'); c.className = 'mon'; c.textContent = m.name; const lv = document.createElement('b'); lv.textContent = 'Lv' + m.level; c.append(lv); team.append(c); }
