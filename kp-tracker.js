@@ -235,12 +235,14 @@ const KPTracker = (() => {
           if (side === 'p' && !mine) mine = live; else if (side === 'e' && !theirs) theirs = live;
         }
         const applyLive = ({ m, off }) => {
+          if (!edv.getUint16(off + 0x2C, true) || !edv.getUint16(off + 2, true)) return m;
           m.hp = [edv.getUint16(off + 0x28, true), edv.getUint16(off + 0x2C, true)];
           m.stats = { HP: m.hp[1], ATK: edv.getUint16(off + 2, true), DEF: edv.getUint16(off + 4, true), SPA: edv.getUint16(off + 8, true), SPD: edv.getUint16(off + 10, true), SPE: edv.getUint16(off + 6, true) };
           m.moves.forEach((mv, i) => { mv.ppLeft = ew[off + 0x24 + i]; });
           // Stat stages (6 = no change): HP, ATK, DEF, SPE, SPA, SPD, ACC, EVA.
+          // At the very start of a battle the record isn't filled in yet; the HP stage is always 6 once it is.
           const stg = (i) => ew[off + 0x18 + i] - 6, stages = {};
-          [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = stg(i); if (v && Math.abs(v) <= 6) stages[k] = v; });
+          if (ew[off + 0x18] === 6) [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = stg(i); if (v && Math.abs(v) <= 6) stages[k] = v; });
           m.stages = stages;
           const st = ew[off + 0x4C];
           m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
