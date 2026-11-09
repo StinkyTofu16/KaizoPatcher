@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=2ae1941271">
+<link rel="manifest" href="manifest.webmanifest?v=ca830053bf">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -147,10 +147,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=2ae1941271"></script>
-<script src="kp-config.js?v=2ae1941271"></script>
-<script src="kp-gen3.js?v=2ae1941271"></script>
-<script src="kp-cloud.js?v=2ae1941271"></script>
+<script src="kp-store.js?v=ca830053bf"></script>
+<script src="kp-config.js?v=ca830053bf"></script>
+<script src="kp-gen3.js?v=ca830053bf"></script>
+<script src="kp-cloud.js?v=ca830053bf"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -179,7 +179,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=2ae1941271').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=ca830053bf').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -263,6 +263,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     const e = emu();
     if (e && pausedByMenu && e.paused) e.togglePlaying();
     pausedByMenu = false;
+    reapplySpeed();
   }
   $('menuBtn').addEventListener('click', openSheet);
   $('resumeBtn').addEventListener('click', closeSheet);
@@ -270,13 +271,24 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('scrim').hidden) closeSheet(); });
 
   // ---- Speed (on/off, not hold) ----
+  // The chosen speed is the source of truth; it is sent to the emulator again whenever it could have been lost
+  // (tapped before the game finished starting, the starter-save restart, resuming after the Menu or app switch).
   let speed = 'normal';
-  function setSpeed(next) {
-    speed = next;
+  function applySpeed() {
     try {
       const e = emu();
-      if (e) { e.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0); e.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0); }
-    } catch (err) { console.error(err); }
+      if (!e || !e.gameManager) return false;
+      e.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0);
+      e.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0);
+      return true;
+    } catch (err) { console.warn(err); return false; }
+  }
+  const reapplySpeed = () => [0, 400, 1500, 4000].forEach((ms) => setTimeout(applySpeed, ms));
+  setInterval(() => { if (speed !== 'normal') applySpeed(); }, 3000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) reapplySpeed(); });
+  function setSpeed(next) {
+    speed = next;
+    reapplySpeed();
     $('spSlow').setAttribute('aria-pressed', String(speed === 'slow'));
     $('spNormal').setAttribute('aria-pressed', String(speed === 'normal'));
     $('spFast').setAttribute('aria-pressed', String(speed === 'fast'));
@@ -400,6 +412,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     $('msg').hidden = true;
     // Only a run's very first launch gets the starter save; later launches (Continue) keep the run's own progress.
     if (!run.launched) { seedStarter(); run.launched = true; saveRunMeta(); }
+    reapplySpeed();
     setTimeout(track, 5000);
     setTimeout(startCloud, 8000);
     // Make the emulator size its drawing buffer to the (possibly narrowed) screen right away.
