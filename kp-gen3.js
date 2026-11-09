@@ -62,21 +62,37 @@ const KPGen3 = (() => {
     for (let i = 0; i < 8; i++) if (flag(L.badge0 + i)) badges++;
     const champion = flag(L.champ);
 
-    const party = [];
-    const countAt = sb1(L.party);
-    const count = countAt >= 0 ? Math.min(6, dv.getUint32(countAt, true)) : 0;
-    for (let i = 0; i < count; i++) {
-      const m = sb1(L.party + 4 + i * 100);
-      if (m < 0) break;
-      const pid = dv.getUint32(m, true), otid = dv.getUint32(m + 4, true), key = (pid ^ otid) >>> 0;
+    // SaveBlock1 as one contiguous buffer (sections 1-4), so the party can be found wherever a romhack put it.
+    const blk = new Uint8Array(DATA * 4);
+    for (let k = 0; k < 4; k++) { const sec = slot.sections[1 + k]; if (sec !== undefined) blk.set(u8.subarray(sec, sec + DATA), k * DATA); }
+    const bdv = new DataView(blk.buffer);
+    // Decrypts one 100-byte party Pokémon; returns null unless its checksum and values are valid.
+    function readMon(m) {
+      if (m + 100 > blk.length) return null;
+      const pid = bdv.getUint32(m, true), otid = bdv.getUint32(m + 4, true), key = (pid ^ otid) >>> 0;
+      if (!pid && !otid) return null;
+      let sum = 0; const words = [];
+      for (let w = 0; w < 12; w++) { const v = (bdv.getUint32(m + 0x20 + w * 4, true) ^ key) >>> 0; words.push(v); sum = (sum + (v & 0xFFFF) + (v >>> 16)) & 0xFFFF; }
+      if (sum !== bdv.getUint16(m + 0x1C, true)) return null;
       const g = ORDERS[pid % 24].indexOf('G');
-      const word0 = (dv.getUint32(m + 0x20 + g * 12, true) ^ key) >>> 0;
-      const sp = word0 & 0xFFFF;
-      if (!sp) continue;
+      const sp = words[g * 3] & 0xFFFF, level = blk[m + 0x54];
+      if (!sp || sp > 411 || level < 1 || level > 100) return null;
       const info = species && species[sp];
-      party.push({ species: sp, dex: info ? info[1] : 0, name: info ? info[0] : '#' + sp, nickname: decodeText(u8, m + 8, 10), level: u8[m + 0x54] });
+      return { species: sp, dex: info ? info[1] : 0, name: info ? info[0] : '#' + sp, nickname: decodeText(blk, m + 8, 10), level };
     }
-    return { trainer, playMinutes, badges, champion, party };
+    function partyAt(off) {
+      const count = blk[off];
+      if (count < 1 || count > 6 || blk[off + 1] || blk[off + 2] || blk[off + 3]) return null;
+      const out = [];
+      for (let i = 0; i < count; i++) { const mon = readMon(off + 4 + i * 100); if (!mon) return null; out.push(mon); }
+      return out;
+    }
+    let party = partyAt(L.party);
+    if (!party) {
+      // Not at the usual spot: search SaveBlock1 for a checksum-valid party.
+      for (let off = 0; off + 104 <= blk.length && !party; off += 4) party = partyAt(off);
+    }
+    return { trainer, playMinutes, badges, champion, party: party || [] };
   }
 
   // Ranking score: Champion counts as a 9th badge; highest party level breaks ties.
