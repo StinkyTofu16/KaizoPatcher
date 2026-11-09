@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=0050c15dba">
+<link rel="manifest" href="manifest.webmanifest?v=778b041eb9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,7 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, sans-serif; overflow: hidden; overscroll-behavior: none; }
 [hidden] { display: none !important; }
-.shell { position: fixed; inset: 0; display: flex; flex-direction: column; }
+.shell { position: fixed; left: 0; right: 0; top: 0; height: var(--app-h, 100%); display: flex; flex-direction: column; }
 .bar { flex: none; display: flex; align-items: center; gap: 12px; background: var(--bar);
   padding-top: calc(env(safe-area-inset-top, 0px) + 6px); padding-bottom: 6px;
   padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
@@ -126,7 +126,7 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 /* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
   /* Side columns only as wide as needed: at least 112px, or whatever is left beside a full-height 3:2 screen. */
-  .gamebox { --side: max(116px, calc(50% - 75dvh)); }
+  .gamebox { --side: max(116px, calc(50% - var(--app-h, 100dvh) * .75)); }
   #game { --zone: 112px; --pad-bottom: 44px; }
   #game .ejs_virtualGamepad_left { left: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
   /* Bigger D-pad (126px) on the left; L and R move up to the bar beside Menu and New run. */
@@ -206,11 +206,33 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=0050c15dba"></script>
-<script src="kp-config.js?v=0050c15dba"></script>
-<script src="kp-gen3.js?v=0050c15dba"></script>
-<script src="kp-cloud.js?v=0050c15dba"></script>
-<script src="kp-tracker.js?v=0050c15dba"></script>
+<script>
+// Screen height for the layout. iPhone home-screen apps sometimes report a height that's too short (stuck after the app
+// comes back from the background or rotates while loading), which squashed the game into the top of the screen.
+// In that case the phone's real screen size is used instead. Android and normal browser tabs keep the reported height.
+(() => {
+  const fix = () => {
+    let h = window.innerHeight;
+    if (navigator.standalone === true && window.screen) {
+      const land = window.innerWidth > window.innerHeight;
+      const real = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+      if (real - h > 30 && real - h < 260) h = real;
+    }
+    document.documentElement.style.setProperty('--app-h', h + 'px');
+  };
+  fix();
+  const later = () => { fix(); [150, 500, 1200].forEach((ms) => setTimeout(() => { fix(); window.dispatchEvent(new Event('resize')); }, ms)); };
+  window.addEventListener('resize', fix);
+  window.addEventListener('orientationchange', later);
+  window.addEventListener('pageshow', later);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) later(); });
+})();
+</script>
+<script src="kp-store.js?v=778b041eb9"></script>
+<script src="kp-config.js?v=778b041eb9"></script>
+<script src="kp-gen3.js?v=778b041eb9"></script>
+<script src="kp-cloud.js?v=778b041eb9"></script>
+<script src="kp-tracker.js?v=778b041eb9"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -239,7 +261,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=0050c15dba').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=778b041eb9').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
