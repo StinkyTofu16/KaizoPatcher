@@ -34,11 +34,11 @@ const KPTracker = (() => {
 
   // Live-memory addresses per game family. inBattle is gMain + 0x439, bit 1 (gMain's first word must be a ROM pointer).
   const LIVE = {
-    E:    { party: 0x020244EC, partyCount: 0x020244E9, enemy: 0x02024744, gMain: 0x030022C0, sb1Ptr: 0x03005D8C, sb2Ptr: 0x03005D90,
+    E:    { party: 0x020244EC, partyCount: 0x020244E9, enemy: 0x02024744, gMain: 0x030022C0, battleMons: 0x02024084, sb1Ptr: 0x03005D8C, sb2Ptr: 0x03005D90,
             items: [0x560, 30], berries: [0x790, 46], keyOff: 0xAC },
-    FRLG: { party: 0x02024284, partyCount: 0x02024029, enemy: 0x0202402C, gMain: 0x030030F0, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C,
+    FRLG: { party: 0x02024284, partyCount: 0x02024029, enemy: 0x0202402C, gMain: 0x030030F0, battleMons: 0x02023BE4, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C,
             items: [0x310, 42], berries: [0x54C, 43], keyOff: 0xF20 },
-    RS:   { party: 0x03004360, partyCount: 0x03004350, enemy: 0x030045C0, gMain: null, sb1: 0x02025734, sb2: 0x02024EA4,
+    RS:   { party: 0x03004360, partyCount: 0x03004350, enemy: 0x030045C0, gMain: null, battleMons: 0x02024A80, sb1: 0x02025734, sb2: 0x02024EA4,
             items: [0x560, 20], berries: [0x740, 46], keyOff: null },
   };
   const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG' };
@@ -227,13 +227,19 @@ const KPTracker = (() => {
         const byPid = new Map(); party.forEach((m) => byPid.set(m.pid, ['p', m])); enemy.forEach((m) => byPid.set(m.pid, ['e', m]));
         const ew = mem.ewram, edv = dvOf(ew);
         let mine = null, theirs = null;
-        for (let off = 0; off + 0x58 <= ew.length && !(mine && theirs); off += 4) {
-          const hit = byPid.get(edv.getUint32(off + 0x48, true)); if (!hit) continue;
+        // A real battle record has every stat stage between 0 and 12, and its HP stage is always 6 (no change).
+        const recordOk = (off) => { if (ew[off + 0x18] !== 6) return false; for (let i = 1; i < 8; i++) if (ew[off + 0x18 + i] > 12) return false; return true; };
+        const consider = (off) => {
+          const hit = byPid.get(edv.getUint32(off + 0x48, true)); if (!hit) return;
           const [side, m] = hit;
-          if (edv.getUint16(off, true) !== m.species || ew[off + 0x2A] !== m.level) continue;
-          const live = { m, off };
-          if (side === 'p' && !mine) mine = live; else if (side === 'e' && !theirs) theirs = live;
-        }
+          if (edv.getUint16(off, true) !== m.species || ew[off + 0x2A] !== m.level || !recordOk(off)) return;
+          if (side === 'p' && !mine) mine = { m, off }; else if (side === 'e' && !theirs) theirs = { m, off };
+        };
+        // The game's battle records (4 battlers) at their known address first; the game also keeps temporary
+        // copies of the same data elsewhere, which can hold leftover values, so memory is searched only as a fallback.
+        const base = A.battleMons & 0x3FFFF;
+        for (let k = 0; k < 4; k++) if (base + 0x58 * (k + 1) <= ew.length) consider(base + 0x58 * k);
+        for (let off = 0; off + 0x58 <= ew.length && !(mine && theirs); off += 4) consider(off);
         const applyLive = ({ m, off }) => {
           if (!edv.getUint16(off + 0x2C, true) || !edv.getUint16(off + 2, true)) return m;
           m.hp = [edv.getUint16(off + 0x28, true), edv.getUint16(off + 0x2C, true)];
