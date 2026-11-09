@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=c7a11a2699">
+<link rel="manifest" href="manifest.webmanifest?v=0050c15dba">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -113,9 +113,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
     <p class="hint">In Safari, tap the Share button, then <b>Add to Home Screen</b>. KaizoPatcher will open full screen from its own icon.</p>
   </section>
 </div>
-<script src="kp-store.js?v=c7a11a2699"></script>
-<script src="kp-random.js?v=c7a11a2699"></script>
-<script src="kp-gen3.js?v=c7a11a2699"></script>
+<script src="kp-store.js?v=0050c15dba"></script>
+<script src="kp-random.js?v=0050c15dba"></script>
+<script src="kp-gen3.js?v=0050c15dba"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -244,7 +244,7 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=c7a11a2699')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=0050c15dba')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;

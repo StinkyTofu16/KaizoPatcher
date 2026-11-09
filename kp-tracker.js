@@ -166,6 +166,7 @@ const KPTracker = (() => {
     const item = (i) => (T.items >= 0 && i > 0 && i < 377 ? nice(nameAt(rom, T.items, 44, i, 14)) : '');
     const A = LIVE[fam];
 
+    const seen = new Map(); // personality -> stat stages looked valid when it entered the current battle
     function read(state) {
       const mem = KPGen3.stateMemory(state); if (!mem) return null;
       const view = (addr, len) => {
@@ -222,6 +223,7 @@ const KPTracker = (() => {
         const cb = u32(A.gMain), flags = view(A.gMain + 0x439, 1);
         inBattle = !!(cb >= 0x08000000 && cb < 0x0A000000 && flags && (flags[0] & 2));
       }
+      if (!inBattle) seen.clear();
       if (inBattle) {
         const enemy = []; for (let k = 0; k < 6; k++) { const m = mon(A.enemy + 100 * k); if (!m) break; enemy.push(m); }
         const byPid = new Map(); party.forEach((m) => byPid.set(m.pid, ['p', m])); enemy.forEach((m) => byPid.set(m.pid, ['e', m]));
@@ -246,9 +248,13 @@ const KPTracker = (() => {
           m.stats = { HP: m.hp[1], ATK: edv.getUint16(off + 2, true), DEF: edv.getUint16(off + 4, true), SPA: edv.getUint16(off + 8, true), SPD: edv.getUint16(off + 10, true), SPE: edv.getUint16(off + 6, true) };
           m.moves.forEach((mv, i) => { mv.ppLeft = ew[off + 0x24 + i]; });
           // Stat stages (6 = no change): HP, ATK, DEF, SPE, SPA, SPD, ACC, EVA.
-          // At the very start of a battle the record isn't filled in yet; the HP stage is always 6 once it is.
-          const stg = (i) => ew[off + 0x18 + i] - 6, stages = {};
-          if (ew[off + 0x18] === 6) [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = stg(i); if (v && Math.abs(v) <= 6) stages[k] = v; });
+          // Stat stages are trusted only if, when this Pokémon first came into the battle, every stage read as
+          // unchanged (6). Otherwise those bytes aren't stat stages on this game, and no changes are shown, so
+          // arrows only ever appear after a move or ability actually raises or lowers a stat.
+          const raw = Array.from(ew.subarray(off + 0x18, off + 0x20));
+          if (!seen.has(m.pid)) seen.set(m.pid, raw.every((v) => v === 6));
+          const stages = {};
+          if (seen.get(m.pid) && raw[0] === 6) [['ATK', 1], ['DEF', 2], ['SPE', 3], ['SPA', 4], ['SPD', 5], ['ACC', 6], ['EVA', 7]].forEach(([k, i]) => { const v = raw[i] - 6; if (v && Math.abs(v) <= 6) stages[k] = v; });
           m.stages = stages;
           const st = ew[off + 0x4C];
           m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
