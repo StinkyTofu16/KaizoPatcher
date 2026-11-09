@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher Account</title>
-<link rel="manifest" href="manifest.webmanifest?v=ca5a630a3c">
+<link rel="manifest" href="manifest.webmanifest?v=2ae1941271">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,6 +47,9 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
 .secondary { background: transparent; color: var(--accent); }
 .btn:disabled { opacity: .5; }
 .link { background: none; border: 0; color: var(--accent); font: 600 .9rem var(--f-body); padding: 4px 0; cursor: pointer; align-self: flex-start; }
+label.check { flex-direction: row; align-items: center; gap: 12px; color: var(--ink); font-size: .95rem; cursor: pointer; min-height: 44px; }
+label.check input { width: 22px; height: 22px; min-height: 0; padding: 0; margin: 0; accent-color: var(--accent); flex: none; }
+label.check small { display: block; color: var(--muted); font-size: .8rem; }
 .status { margin: 0; font-size: .9rem; min-height: 1.3em; color: var(--muted); }
 .status.bad { color: var(--bad); } .status.ok { color: var(--ok); }
 .hint { color: var(--muted); font-size: .86rem; margin: 0; }
@@ -92,6 +95,7 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
         <label id="nameRow" hidden>Username (shown on the leaderboard)<input id="username" autocomplete="nickname" autocapitalize="off" spellcheck="false" maxlength="16" placeholder="3–16 letters, numbers or _"></label>
         <label>Email<input id="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false" autofocus></label>
         <label>Password<input id="password" type="password" autocomplete="current-password" minlength="6"></label>
+        <label class="check"><input id="remember" type="checkbox" checked> <span>Remember me <small>Stay signed in on this device until you sign out</small></span></label>
         <button class="btn primary" id="submitBtn" type="submit">Sign in</button>
         <button class="link" id="resetBtn" type="button">Forgot password?</button>
         <p class="status" id="formStatus" aria-live="polite"></p>
@@ -120,12 +124,13 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
     </section>
   </section>
 </div>
-<script src="kp-config.js?v=ca5a630a3c"></script>
-<script src="kp-gen3.js?v=ca5a630a3c"></script>
-<script src="kp-cloud.js?v=ca5a630a3c"></script>
+<script src="kp-config.js?v=2ae1941271"></script>
+<script src="kp-gen3.js?v=2ae1941271"></script>
+<script src="kp-cloud.js?v=2ae1941271"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
+  $('remember').checked = KPCloud.remembered();
   let mode = 'in';
   const setMode = (m) => {
     mode = m;
@@ -177,8 +182,9 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid 
     if (!email || !pw) { status('Enter your email and password.', 'bad'); return; }
     $('submitBtn').disabled = true; status(mode === 'up' ? 'Creating your account…' : 'Signing in…');
     try {
-      if (mode === 'up') await KPCloud.signUp(email, pw, $('username').value);
-      else await KPCloud.signIn(email, pw);
+      const remember = $('remember').checked;
+      if (mode === 'up') await KPCloud.signUp(email, pw, $('username').value, remember);
+      else await KPCloud.signIn(email, pw, remember);
       status('');
     } catch (err) { status(err.message, 'bad'); }
     $('submitBtn').disabled = false;

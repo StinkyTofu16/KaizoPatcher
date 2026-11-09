@@ -12,6 +12,11 @@ const KPCloud = (() => {
   async function loadUsername(uid) {
     try { const d = await withTimeout(F.getDoc(F.doc(db, 'users', uid)), 8000, 'Profile'); return (d.exists() && d.data().username) || ''; } catch (e) { return ''; }
   }
+  function remembered() { try { return localStorage.getItem('kp:remember') !== '0'; } catch (e) { return true; } }
+  async function applyRemember(remember) {
+    try { localStorage.setItem('kp:remember', remember === false ? '0' : '1'); } catch (e) {}
+    try { await A.setPersistence(auth, remember === false ? A.browserSessionPersistence : A.browserLocalPersistence); } catch (e) { console.warn(e); }
+  }
   function init() {
     if (ready) return ready;
     if (!window.KP_FIREBASE || !window.KP_FIREBASE.apiKey) { ready = Promise.resolve(false); return ready; }
@@ -20,7 +25,10 @@ const KPCloud = (() => {
         import(SDK + 'firebase-app.js'), import(SDK + 'firebase-auth.js'), import(SDK + 'firebase-firestore.js')]), 20000, 'Loading accounts');
       A = authM; F = fsM;
       const app = appM.initializeApp(window.KP_FIREBASE);
-      auth = A.initializeAuth(app, { persistence: A.browserLocalPersistence });
+      // "Remember me" (the default) keeps the sign-in in localStorage, so it lasts until the player signs out.
+      // Without it, the sign-in lives in sessionStorage and ends when the app or tab is closed.
+      const local = A.browserLocalPersistence, session = A.browserSessionPersistence;
+      auth = A.initializeAuth(app, { persistence: remembered() ? [local, session] : [session, local] });
       db = F.getFirestore(app);
       await withTimeout(new Promise((res) => {
         let first = true;
@@ -52,8 +60,9 @@ const KPCloud = (() => {
     })[c] || (e && e.message) || 'Something went wrong.';
   };
 
-  async function signUp(email, password, username) {
+  async function signUp(email, password, username, remember = true) {
     if (!(await init())) throw new Error('The account service didn’t load. Check your connection.');
+    await applyRemember(remember);
     const name = String(username || '').trim();
     if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) throw new Error('Usernames are 3–16 letters, numbers or underscores.');
     const key = name.toLowerCase();
@@ -74,8 +83,9 @@ const KPCloud = (() => {
     listeners.forEach((fn) => fn(current));
     return current;
   }
-  async function signIn(email, password) {
+  async function signIn(email, password, remember = true) {
     if (!(await init())) throw new Error('The account service didn’t load. Check your connection.');
+    await applyRemember(remember);
     try { await A.signInWithEmailAndPassword(auth, email, password); } catch (e) { throw new Error(friendly(e)); }
   }
   async function signOut() { if (await init()) await A.signOut(auth); }
@@ -143,5 +153,5 @@ const KPCloud = (() => {
     return { startSave: v.startSave ? v.startSave.toUint8Array() : null, current: v.current ? { runKey: v.current.runKey, data: v.current.data.toUint8Array() } : null };
   }
 
-  return { init, onChange, user, status, signUp, signIn, signOut, resetPassword, startRun, recordProgress, endRun, stats, leaderboard, backupSaves, fetchSaves };
+  return { init, onChange, user, status, remembered, signUp, signIn, signOut, resetPassword, startRun, recordProgress, endRun, stats, leaderboard, backupSaves, fetchSaves };
 })();
