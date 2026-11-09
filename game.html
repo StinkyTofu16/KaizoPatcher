@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9de8afe9d6">
+<link rel="manifest" href="manifest.webmanifest?v=a2d23bc412">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -62,6 +62,44 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); 
 body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .ejs_virtualGamepad_open { display: none !important; }
 
+/* Tracker (IronMON-style): lead Pokémon, stats, moves and the opponent, read live from the game. */
+.trk { position: absolute; z-index: 5; background: rgba(14, 19, 26, .94); border: 1px solid #2c3746; border-radius: 10px; color: #e6ebf2;
+  font: 11px/1.25 system-ui, -apple-system, sans-serif; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; pointer-events: none; }
+.trk .hd { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.trk .nm { font-weight: 700; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trk .lv, .trk .num { font: 500 10.5px ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; color: #c9d2de; white-space: nowrap; }
+.trk .lv { color: #98a3b3; font-weight: 600; }
+.trk .ty { font: 700 9px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .04em; color: #fff; border-radius: 4px; padding: 1px 5px; text-shadow: 0 1px 1px rgba(0,0,0,.4); white-space: nowrap; }
+.trk .st { font: 700 9px system-ui, sans-serif; color: #1d1600; background: #f0c75c; border-radius: 4px; padding: 1px 4px; }
+.trk .hp { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 50px; }
+.trk .hpbar { flex: 1; height: 5px; background: #2a323d; border-radius: 3px; overflow: hidden; min-width: 20px; }
+.trk .hpbar i { display: block; height: 100%; border-radius: 3px; }
+.trk .stats { display: flex; flex-wrap: wrap; gap: 2px 9px; font: 500 10.5px ui-monospace, Menlo, monospace; color: #c9d2de; }
+.trk b.k, .trk .ai b { color: #7f8a99; font-weight: 600; margin-right: 2px; }
+.trk .plus { color: #6fd39c; } .trk .minus { color: #ff8f86; }
+.trk .moves { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 6px; }
+.trk .mv { display: flex; align-items: center; gap: 5px; background: #19212b; border-radius: 6px; padding: 3px 6px; min-width: 0; }
+.trk .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+.trk .mn { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.trk .eff { font: 700 9.5px ui-monospace, Menlo, monospace; }
+.trk .eff.x2 { color: #6fd39c; } .trk .eff.x05, .trk .eff.x0 { color: #ff8f86; } .trk .eff.x1 { color: #98a3b3; }
+.trk .foe { display: flex; align-items: center; gap: 6px; color: #c9d2de; border-top: 1px solid #263040; padding-top: 4px; white-space: nowrap; overflow: hidden; }
+.trk .k2 { color: #7f8a99; font-weight: 700; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; }
+.trk .ai { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #c9d2de; }
+.trk .empty { color: #98a3b3; font-size: 10.5px; line-height: 1.35; }
+.trk.side { padding: 4px 6px; gap: 2px; font-size: 10px; border-radius: 8px; }
+.trk.side .nm { font-size: 11px; }
+.trk.side .num, .trk.side .lv { font-size: 9.5px; }
+.trk.side .ty { font-size: 8px; padding: 0 4px; }
+.trk .sgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; font: 500 10px/1.3 ui-monospace, Menlo, monospace; color: #c9d2de; }
+.trk .sgrid2 b { color: #7f8a99; font-weight: 600; margin-right: 3px; font-size: 9px; }
+.trk .mv2 { background: #19212b; border-radius: 5px; padding: 2px 5px; }
+.trk .mv2 .l1 { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.trk .mv2 .dot { width: 6px; height: 6px; }
+.trk .mv2 .l2 { display: flex; gap: 6px; padding-left: 10px; }
+#trkL, #trkR { display: none; }
+.lrbtn { display: none; }
+
 /* Menu sheet */
 .scrim { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: min(420px, 100%); max-height: 100%; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 0 0;
@@ -88,8 +126,23 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 /* Phone held sideways: only a small Menu button in the top-left corner so the game gets the full height. */
 @media (orientation: landscape) and (max-height: 520px) {
   /* Side columns only as wide as needed: at least 112px, or whatever is left beside a full-height 3:2 screen. */
-  #game { --zone: 112px; --pad-bottom: 44px; --side: max(116px, calc(50% - 75dvh)); }
+  .gamebox { --side: max(116px, calc(50% - 75dvh)); }
+  #game { --zone: 112px; --pad-bottom: 44px; }
   #game .ejs_virtualGamepad_left { left: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
+  /* Bigger D-pad (126px) on the left; L and R move up to the bar beside Menu and New run. */
+  #game .ejs_virtualGamepad_left { width: 126px !important; height: 126px !important; left: max(3px, calc(var(--side) - 129px)) !important; }
+  #game .b_l, #game .b_r { display: none !important; }
+  .lrbtn { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; font-size: 1rem !important; font-weight: 700 !important; touch-action: none; -webkit-user-select: none; user-select: none; }
+  .lrbtn.down { background: rgba(125, 155, 255, .75) !important; color: #0d1422 !important; }
+  .bar { gap: 6px; }
+  #rBtn { margin-left: auto; }
+  #rBtn + .newtop { margin-left: 0; }
+  /* Tracker panels in the side columns: stats top-left (above the D-pad), moves top-right (above A/B). */
+  body.kp-trk #trkL, body.kp-trk #trkR { display: flex; }
+  #trkL, #trkR { top: 44px; width: calc(var(--side) - 8px); }
+  #trkL { left: 4px; bottom: 186px; }
+  #trkR { right: 4px; bottom: 172px; }
+  #trkU { display: none !important; }
   #game .ejs_virtualGamepad_right { right: max(3px, calc(var(--side) - var(--zone) - 3px)) !important; }
   #game .b_a, #game .b_b { width: 46% !important; height: 46% !important; }
   /* Narrow the game image so the controls get their own columns instead of covering the screen. */
@@ -108,13 +161,18 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 <div class="shell">
   <div class="bar">
     <button class="barbtn" id="menuBtn" aria-haspopup="dialog"><span class="runtag" id="runTag"></span>Menu</button>
+    <button class="barbtn lrbtn" id="lBtn" aria-label="L button">L</button>
     <span class="info" id="info"></span>
     <span class="speedtag" id="speedTag" hidden></span>
+    <button class="barbtn lrbtn" id="rBtn" aria-label="R button">R</button>
     <button class="barbtn newtop" id="newTopBtn">New run</button>
   </div>
   <div class="stage">
     <div class="gamebox">
       <div id="game"></div>
+      <div class="trk side" id="trkL" aria-label="Tracker: your Pokémon"></div>
+      <div class="trk side" id="trkR" aria-label="Tracker: moves"></div>
+      <div class="trk" id="trkU" aria-label="Tracker" hidden></div>
       <div class="msg" id="msg">Loading your run…</div>
       <div class="toast" id="toast" role="status" hidden></div>
     </div>
@@ -137,6 +195,7 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
     </div>
     <div class="list">
       <button class="sbtn primary" id="resumeBtn">Resume</button>
+      <button class="sbtn" id="trkToggle">Tracker <small id="trkState">On</small></button>
       <button class="sbtn" id="toolsBtn">Emulator options <small id="toolsState">Save states, settings</small></button>
       <button class="sbtn" id="starterBtn">Use this save for new runs <small id="starterState">Skip the intro</small></button>
       <button class="sbtn" id="starterClearBtn" hidden>Remove starter save <small>New runs start from scratch</small></button>
@@ -147,10 +206,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
   </div>
 </div>
 
-<script src="kp-store.js?v=9de8afe9d6"></script>
-<script src="kp-config.js?v=9de8afe9d6"></script>
-<script src="kp-gen3.js?v=9de8afe9d6"></script>
-<script src="kp-cloud.js?v=9de8afe9d6"></script>
+<script src="kp-store.js?v=a2d23bc412"></script>
+<script src="kp-config.js?v=a2d23bc412"></script>
+<script src="kp-gen3.js?v=a2d23bc412"></script>
+<script src="kp-cloud.js?v=a2d23bc412"></script>
+<script src="kp-tracker.js?v=a2d23bc412"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -179,7 +239,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=9de8afe9d6').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=a2d23bc412').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -301,6 +361,104 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   $('spFast').addEventListener('click', () => setSpeed('fast'));
   // Start with the last speed picked (Fast stays on across games and new runs).
   try { const saved = localStorage.getItem('kp:speed'); if (saved === 'fast' || saved === 'slow') setSpeed(saved); } catch (e) {}
+
+  // ---- L and R in the bar (phone sideways) ----
+  for (const [id, input] of [['lBtn', 10], ['rBtn', 11]]) {
+    const btn = $(id);
+    const press = (v) => { btn.classList.toggle('down', !!v); try { const e = emu(); if (e) e.gameManager.simulateInput(0, input, v); } catch (err) {} };
+    btn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); try { btn.setPointerCapture(ev.pointerId); } catch (e) {} press(1); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => btn.addEventListener(t, () => press(0)));
+    btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  }
+
+  // ---- Tracker: lead Pokémon, stats, moves and the opponent, read from the game every 1.5 s ----
+  let tracker = null, trackerOn = true, lastTrk = '';
+  try { trackerOn = localStorage.getItem('kp:tracker') !== 'off'; } catch (e) {}
+  try { tracker = KPTracker.load(runRom); } catch (err) { console.warn('Tracker unavailable', err); }
+  const TYPEC = { Normal: '#9a9a78', Fire: '#e8803a', Water: '#5c8ae8', Grass: '#6abf4b', Electric: '#e8c430', Ice: '#80cfcf', Fighting: '#b8352c', Poison: '#9a46a0',
+    Ground: '#d8b45a', Flying: '#9a86e8', Psychic: '#ee5888', Bug: '#a2b220', Rock: '#b49c3a', Ghost: '#6a5494', Dragon: '#6a3cf0', Dark: '#6a5446', Steel: '#b4b4cc', '???': '#68a090' };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const tyChip = (t) => '<span class="ty" style="background:' + (TYPEC[t] || '#68a090') + '">' + esc(t) + '</span>';
+  const dot = (t) => '<span class="dot" style="background:' + (TYPEC[t] || '#68a090') + '"></span>';
+  const effTxt = (e) => e == null ? '' : '<span class="eff ' + (e === 0 ? 'x0' : e > 1 ? 'x2' : e < 1 ? 'x05' : 'x1') + '">' + (e === 0 ? '×0' : e >= 4 ? '×4' : e > 1 ? '×2' : e <= .25 ? '×¼' : e < 1 ? '×½' : '×1') + '</span>';
+  const hpColor = (f) => f > .5 ? '#58d080' : f > .2 ? '#f0c040' : '#f05848';
+  const hpBar = (m) => { const f = m.hp[1] ? m.hp[0] / m.hp[1] : 0; return '<span class="hp"><span class="hpbar"><i style="width:' + Math.round(f * 100) + '%;background:' + hpColor(f) + '"></i></span><span class="num">' + m.hp[0] + '/' + m.hp[1] + '</span></span>'; };
+  const statOrder = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'];
+  const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b>' + v + (m.up === k ? '<span class="plus">+</span>' : m.down === k ? '<span class="minus">−</span>' : '') + '</span>';
+  const healsTxt = (m) => m.heals ? m.heals.count + (m.heals.count === 1 ? ' heal' : ' heals') + ' (' + m.heals.pct + '%)' : '—';
+  const powTxt = (mv) => mv.power === 0 ? '—' : mv.power === 1 ? 'var' : mv.power;
+  const EMPTY = '<div class="empty">The tracker shows your Pokémon here once you have one.</div>';
+  function sideLeft(d) {
+    const m = d.mon; if (!m) return EMPTY;
+    const f = m.hp[1] ? m.hp[0] / m.hp[1] : 0;
+    return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">' + m.level + '</span>' + (m.status ? '<span class="st">' + m.status + '</span>' : '') + '</div>'
+      + '<div class="hd">' + m.types.map(tyChip).join('') + '</div>'
+      + '<div class="hpbar" style="flex:none;height:4px"><i style="width:' + Math.round(f * 100) + '%;background:' + hpColor(f) + '"></i></div>'
+      + '<div class="sgrid2">' + statOrder.map((k) => statSpan(m, k, k === 'HP' ? m.hp[0] + '/' + m.hp[1] : m.stats[k])).join('') + '</div>'
+      + '<div class="ai"><b>Abil</b> ' + esc(m.ability || '—') + '</div><div class="ai"><b>Item</b> ' + esc(m.item || '—') + '</div>'
+      + '<div class="ai"><b>Bag</b> ' + healsTxt(m) + '</div><div class="ai"><b>BST</b> ' + m.bst + '</div>';
+  }
+  function sideRight(d) {
+    const m = d.mon; if (!m) return '';
+    return m.moves.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
+      + '<div class="l2"><span class="num">' + mv.ppLeft + 'pp</span><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span>' + effTxt(mv.eff) + '</div></div>').join('')
+      + (d.foe ? '<div class="ai"><span class="k2">Foe</span> ' + esc(d.foe.name) + ' <span class="lv">' + d.foe.level + '</span></div><div class="ai">' + d.foe.types.map(tyChip).join('') + ' <span class="num">BST ' + d.foe.bst + '</span></div>' : '');
+  }
+  function upright(d, h) {
+    const m = d.mon; if (!m) return EMPTY;
+    if (h < 64) return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">Lv' + m.level + '</span>' + hpBar(m) + '<span class="num">' + m.moves.map((x) => x.ppLeft).join(' · ') + ' PP</span></div>';
+    return '<div class="hd"><span class="nm">' + esc(m.name) + '</span><span class="lv">Lv' + m.level + '</span>' + m.types.map(tyChip).join('') + (m.status ? '<span class="st">' + m.status + '</span>' : '') + hpBar(m) + '</div>'
+      + '<div class="stats">' + statOrder.slice(1).map((k) => statSpan(m, k, m.stats[k])).join('') + '<span><b class="k">BST</b>' + m.bst + '</span></div>'
+      + (h >= 112 ? '<div class="stats" style="font-family:inherit"><span><b class="k">Abil</b>' + esc(m.ability || '—') + '</span><span><b class="k">Item</b>' + esc(m.item || '—') + '</span><span><b class="k">Bag</b>' + healsTxt(m) + '</span></div>' : '')
+      + '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>'
+      + (d.foe && h >= 140 ? '<div class="foe"><span class="k2">Foe</span><b>' + esc(d.foe.name) + '</b><span class="lv">Lv' + d.foe.level + '</span>' + d.foe.types.map(tyChip).join('') + '<span>BST ' + d.foe.bst + ' · ' + d.foe.hpPct + '% HP</span></div>' : '');
+  }
+  // Upright, the panel fills the gap between the game picture (top, 3:2) and L/R above the controls.
+  function placeUpright() {
+    const box = document.querySelector('.gamebox'), el = $('trkU');
+    const land = matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
+    if (land || !trackerOn || !tracker) { el.hidden = true; return 0; }
+    const top = box.clientWidth * 2 / 3 + 6, bottom = 301, h = box.clientHeight - top - bottom;
+    if (h < 26) { el.hidden = true; return 0; }
+    Object.assign(el.style, { left: '8px', right: '8px', top: top + 'px', height: h + 'px' });
+    el.hidden = false;
+    return h;
+  }
+  let lastData = { mon: null, foe: null };
+  function renderTracker(d) {
+    if (d) lastData = d;
+    const h = placeUpright();
+    const key = JSON.stringify(lastData) + '|' + Math.round(h);
+    if (key === lastTrk) return;
+    lastTrk = key;
+    $('trkL').innerHTML = sideLeft(lastData); $('trkR').innerHTML = sideRight(lastData);
+    if (h) $('trkU').innerHTML = upright(lastData, h);
+    // On short screens, drop the lowest lines (BST, Bag, Item…) until the rest fits.
+    for (const el of [$('trkL'), $('trkR'), $('trkU')]) {
+      if (!el.offsetParent) continue;
+      const rows = [...el.querySelectorAll('.ai, .foe')];
+      while (el.scrollHeight > el.clientHeight + 1 && rows.length) rows.pop().remove();
+    }
+  }
+  function applyTracker() {
+    document.body.classList.toggle('kp-trk', !!(trackerOn && tracker));
+    $('trkState').textContent = !tracker ? 'Not available for this game' : trackerOn ? 'On' : 'Off';
+    lastTrk = ''; renderTracker();
+  }
+  function pollTracker() {
+    if (!trackerOn || !tracker || document.hidden) return;
+    const e = emu(); if (!e) return;
+    try { const st = e.gameManager.getState(); if (st && st.length) renderTracker(tracker.read(st) || lastData); } catch (err) { console.warn('Tracker read failed', err); }
+  }
+  setInterval(pollTracker, 1500);
+  addEventListener('resize', () => { lastTrk = ''; renderTracker(); });
+  $('trkToggle').addEventListener('click', () => {
+    if (!tracker) return;
+    trackerOn = !trackerOn;
+    try { localStorage.setItem('kp:tracker', trackerOn ? 'on' : 'off'); } catch (e) {}
+    applyTracker(); pollTracker();
+  });
+  applyTracker();
 
   // ---- Emulator toolbar on demand ----
   let tools = false;

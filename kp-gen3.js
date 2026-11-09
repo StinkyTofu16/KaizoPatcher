@@ -177,6 +177,6 @@ const KPGen3 = (() => {
 
   // Ranking score: Champion counts as a 9th badge; highest party level breaks ties.
   function score(p) { if (!p) return 0; const top = Math.max(0, ...p.party.map((x) => x.level)); return (p.champion ? 9 : p.badges) * 1000 + top; }
-  return { read, readLive, score, decodeText };
+  return { read, readLive, score, decodeText, stateMemory };
 })();
 if (typeof module !== 'undefined') module.exports = KPGen3;
