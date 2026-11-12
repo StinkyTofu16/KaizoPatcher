@@ -92,6 +92,10 @@ const KPMaxDex = (() => {
     if (i < 0 || dz < 0) fail('the abilities');
     D.abilLen = dz - i; D.abilNames = i - D.abilLen;
     D.abilName = (a) => { let t = '', o = D.abilNames + a * D.abilLen; for (let k = 0; k < D.abilLen && R[o + k] !== 0xFF; k++) t += DEC[R[o + k]] || '?'; return t; };
+    // ability descriptions: a pointer per ability, found from Stench's ("Helps repel wild POKéMON.")
+    i = find(R, Uint8Array.of(...enc('Helps repel wild')));
+    if (i >= 0) for (let o = 0; o + 4 <= R.length; o += 4) if (u32(o) === i + 0x08000000) { D.abilDesc = o - 4; break; }
+    D.abilDescText = (a) => { if (D.abilDesc === undefined) return ''; const p = u32(D.abilDesc + a * 4); if (!isPtr(p)) return ''; let t = '', o = p - 0x08000000; for (let k = 0; k < 60 && R[o + k] !== 0xFF; k++) t += DEC[R[o + k]] || '?'; return t; };
     D.abilCount = 1; while (D.abilCount < 1000 && /^[A-Za-z0-9 .'\-]+$/.test(D.abilName(D.abilCount))) D.abilCount++;
 
     // move names (for the spoiler log)
@@ -284,13 +288,25 @@ const KPMaxDex = (() => {
       protean: ['libero'], propellertail: ['stalwart'] };
     // (species store abilities in one byte, so only the first 255 can be given)
     const abilId = new Map(); for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!abilId.has(norm(D.abilName(a)))) abilId.set(norm(D.abilName(a)), a);
-    const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a))) abilPool.push(a);
+    // Which abilities work: MaxDex gives real descriptions only to the abilities it implements (1-195 in v1.1); the rest
+    // just repeat their name ("Cursed Body.") and the game never gives them to the Pokémon that normally have them.
+    // An ability MaxDex itself gives to a Pokémon (Zacian's Intrepid Sword, Zamazenta's Dauntless Shield) counts too,
+    // and gets a proper description.
+    const nativeAbil = new Set(); for (const sp of allSpecies) { const o = D.stats + sp * D.statSize; nativeAbil.add(R[o + 22]); nativeAbil.add(R[o + 24]); }
+    const placeholderDesc = (a) => norm(D.abilDescText(a)) === norm(D.abilName(a));
+    const DESC = { intrepidsword: 'Raises Attack on entry.', dauntlessshield: 'Raises Defense on entry.' };
+    const works = (a) => D.abilDesc === undefined || !placeholderDesc(a) || nativeAbil.has(a);
+    for (let a = 1; a < Math.min(D.abilCount, 256); a++) {
+      const d = DESC[norm(D.abilName(a))];
+      if (d && placeholderDesc(a) && D.abilDesc !== undefined) { const t = enc(d); R.set(t, free); R[free + t.length] = 0xFF; w32(D.abilDesc + a * 4, free + 0x08000000); free += t.length + 1; }
+    }
+    const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (works(a) && !BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a))) abilPool.push(a);
     const pickAbility = (...not) => {
       for (;;) {
         let a = rnd.pick(abilPool);
         if (not.includes(a)) continue;
         const v = VARIANTS[norm(D.abilName(a))];
-        if (v) { const opts2 = [a, ...v.map((x) => abilId.get(x)).filter(Boolean)]; a = rnd.pick(opts2); }
+        if (v) { const opts2 = [a, ...v.map((x) => abilId.get(x)).filter((x) => x && x < 256 && works(x))]; a = rnd.pick(opts2); }
         return a;
       }
     };
