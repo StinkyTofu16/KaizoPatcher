@@ -214,7 +214,9 @@ const KPTracker = (() => {
     // Levels at which a species learns moves, from the (randomized) level-up lists.
     const learnLevels = (sp) => {
       if (T.learnsets < 0 || !(sp > 0 && sp < F.maxSp)) return [];
-      let p = ((rom[T.learnsets + 4 * sp] | (rom[T.learnsets + 4 * sp + 1] << 8) | (rom[T.learnsets + 4 * sp + 2] << 16)) >>> 0);
+      // full 32-bit pointer: randomized lists can sit past 16 MB in a 32 MB game
+      let p = ((rom[T.learnsets + 4 * sp] | (rom[T.learnsets + 4 * sp + 1] << 8) | (rom[T.learnsets + 4 * sp + 2] << 16) | (rom[T.learnsets + 4 * sp + 3] << 24)) >>> 0) - 0x08000000;
+      if (p < 0 || p >= rom.length) return [];
       const out = [];
       if (MX) { // 3-byte {move, level} entries; the game stops at the first empty move
         for (let k = 0; k < 120 && p + 2 < rom.length; k++, p += 3) { const mv = rom[p] | (rom[p + 1] << 8); if (rom[p + 2] === 0xFF || !mv) break; out.push(rom[p + 2]); }
