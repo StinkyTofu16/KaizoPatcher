@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=2a1cb516d3">
+<link rel="manifest" href="manifest.webmanifest?v=987130c3c9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,9 +118,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=2a1cb516d3"></script>
-<script src="kp-random.js?v=2a1cb516d3"></script>
-<script src="kp-gen3.js?v=2a1cb516d3"></script>
+<script src="kp-store.js?v=987130c3c9"></script>
+<script src="kp-random.js?v=987130c3c9"></script>
+<script src="kp-gen3.js?v=987130c3c9"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -171,6 +171,13 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
       st.textContent = 'Loading your game\u2026';
       const base = await withTimeout(KPStore.get('setupRom'), 30000);
       if (!base) throw new Error('Your game file is missing from this phone. Set it up again in the patcher.');
+      // Not-randomized games (e.g. MaxDex, until a randomizer for it exists): each run is a fresh copy of the game.
+      if (su.noRandom) {
+        st.textContent = 'Saving\u2026'; stage = 'saving';
+        await saveRun(su, base, null);
+        location.replace('game.html');
+        return;
+      }
       stage = 'randomizing';
       const out = await KPRandom.run(new Uint8Array(base), su.ext, su.presetFile, (t) => { st.textContent = t; });
       st.textContent = 'Saving\u2026'; stage = 'saving';
@@ -251,7 +258,8 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=2a1cb516d3')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=987130c3c9')).json(); } catch (e) { presets = {}; }
+  if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;

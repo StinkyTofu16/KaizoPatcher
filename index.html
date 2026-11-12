@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=2a1cb516d3">
+<link rel="manifest" href="manifest.webmanifest?v=987130c3c9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -504,7 +504,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=2a1cb516d3"></script>
+<script src="kp-store.js?v=987130c3c9"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -809,7 +809,7 @@ $('saveBtn').addEventListener('click', () => {
 });
 // ---------- randomizer (Universal Pokemon Randomizer ZX via CheerpJ) ----------
 const CJ_URL = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
-let cjReady = null, randOut = null, randRuns = 0, randFam = null, randJar = null;
+let cjReady = null, randOut = null, randRuns = 0, randFam = null, randJar = null, noRand = false;
 // Nat. Dex presets (presets/natdex/…) run with the Nat. Dex build of the randomizer.
 const jarFor = (presetFile) => (/^natdex\//.test(presetFile) ? 'randomizer_natdex.jar' : 'PokeRandoZX.jar');
 function resetRandom() {
@@ -822,9 +822,18 @@ function prepRandom(id, p) {
   const fam = id && FAMILY[id.ids[0]] && (FAMILY[id.ids[0]] + (natdex ? ' NatDex' : ''));
   randFam = fam;
   const blocked = p && p.file && /^maxdex/.test(p.file);
+  noRand = false; $('presetSel').closest('label').hidden = false; $('randBtn').hidden = false; $('playBtn').textContent = 'Play in browser';
   if (!fam || !PRESETS[fam] || blocked) {
-    $('randHint').textContent = blocked ? 'MaxDex needs its own version of the randomizer, which isn’t included yet.'
+    $('randHint').textContent = blocked ? 'MaxDex needs its own version of the randomizer, which isn’t included yet. You can still play it in the browser without randomizing.'
       : 'There are no randomizer presets for this game.';
+    // MaxDex: playable in the browser without randomizing (every New run is a fresh copy of the game).
+    if (blocked && id && KP_CORES[id.sys]) {
+      noRand = true;
+      $('presetSel').closest('label').hidden = true; $('randBtn').hidden = true;
+      $('randBox').hidden = false; $('step4').setAttribute('aria-disabled', 'false'); $('randResult').hidden = true; $('randStatus').textContent = '';
+      $('playBtn').hidden = false; $('playBtn').textContent = 'Play in browser (not randomized)';
+      $('playHint').textContent = 'Keeps this game on your phone. Every New run starts a fresh save of the same game, without randomizing.';
+    }
     return;
   }
   const sel = $('presetSel'); sel.replaceChildren();
@@ -895,12 +904,12 @@ $('playBtn').addEventListener('click', async () => {
     // The game file is stored once under its own key; the details record stays small.
     await KPStore.set('setupRom', romBuf);
     await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: randFam || FAMILY[id.ids[0]],
-      code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, runs: 0 });
+      code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: noRand ? null : sel.value, presetName: noRand ? 'Not randomized' : sel.selectedOptions[0].textContent, noRandom: noRand, runs: 0 });
     for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress', 'spare', 'spareRom', 'spareLog']) await KPStore.del(k);
     location.href = 'play.html?new=1';
   } catch (e) {
     console.error(e); setRand('Couldn\u2019t save the game on this device: ' + ((e && e.message) || e), 'bad');
-    btn.disabled = false; btn.textContent = 'Play in browser';
+    btn.disabled = false; btn.textContent = noRand ? 'Play in browser (not randomized)' : 'Play in browser';
   }
 });
 $('randSaveBtn').addEventListener('click', () => { if (randOut) saveBlob(randOut.rom, randOut.romName); });
