@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=1085b7c8d3">
+<link rel="manifest" href="manifest.webmanifest?v=c1c4062a3f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,10 +118,10 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=1085b7c8d3"></script>
-<script src="kp-random.js?v=1085b7c8d3"></script>
-<script src="kp-maxdex.js?v=1085b7c8d3"></script>
-<script src="kp-gen3.js?v=1085b7c8d3"></script>
+<script src="kp-store.js?v=c1c4062a3f"></script>
+<script src="kp-random.js?v=c1c4062a3f"></script>
+<script src="kp-maxdex.js?v=c1c4062a3f"></script>
+<script src="kp-gen3.js?v=c1c4062a3f"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -140,7 +140,9 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   };
   // A spare run is made right after each new run while the randomizer is already warm (a second run takes seconds),
   // so the next New run can start instantly without loading the randomizer at all.
-  const spareFits = (sp, su) => sp && sp.presetFile === su.presetFile && sp.setupKey === su.key && sp.code === su.code;
+  // MaxDex randomizes in under a second, so it never uses a spare (an old spare could also be from an older randomizer).
+  const quickRandom = (su) => /^maxdex\//.test(su.presetFile || '');
+  const spareFits = (sp, su) => sp && !quickRandom(su) && sp.presetFile === su.presetFile && sp.setupKey === su.key && sp.code === su.code;
   async function saveRun(su, romBuf, logBuf) {
     const id = (su.runs || 0) + 1;
     await KPStore.set('runRom', romBuf);
@@ -185,7 +187,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
       await saveRun(su, await out.rom.arrayBuffer(), out.log ? await out.log.arrayBuffer() : null);
 
       // DS games are ~8x bigger than GBA ones: skip the spare run to keep memory and time down.
-      if (su.core === 'nds') { location.replace('game.html'); return; }
+      if (su.core === 'nds' || quickRandom(su)) { location.replace('game.html'); return; }
       // Make the spare while the randomizer is warm. Play now skips it.
       let skipped = false;
       const go = () => { skipped = true; location.replace('game.html'); };
@@ -259,7 +261,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=1085b7c8d3')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=c1c4062a3f')).json(); } catch (e) { presets = {}; }
   if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
