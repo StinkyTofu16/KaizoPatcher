@@ -249,6 +249,7 @@ const KPMaxDex = (() => {
     const fullyEvolved = all.filter((s) => evoTargets(s).length === 0);
     const evolveTimes = (s, k) => { for (let i = 0; i < k; i++) { const t = evoTargets(s); if (!t.length) break; s = t[0]; } return s; };
 
+    let free = D.free; // free space for rebuilt move lists and trainer teams
     // ---- base stats: same total, split at random (as the regular randomizer does) ----
     const allSpecies = []; for (let s = 1; s < D.count; s++) if (D.bst(s) > 0 && D.name(s) && !/^\?+$/.test(D.name(s))) allSpecies.push(s);
     if (opts.stats) {
@@ -276,27 +277,67 @@ const KPMaxDex = (() => {
         w16(o + 22, a1); w16(o + 24, a2);
       }
     }
-    // ---- level-up moves: every move replaced at random, the first four learned at level 1 ----
-    // Any move up to Gen 9 that has battle data (PP), except Struggle and moves that only work for one Pokémon's form.
-    // Blank (0) entries in MaxDex's lists get real moves too.
-    const BAN_MOVE = new Set(['struggle', 'dynamaxcannon', 'hyperspacefury', 'aurawheel', 'darkvoid', 'ivycudgel', 'ragingbull', 'ordersup', 'orderup']);
-    const movePool = new Set();
-    for (let m = 1; m < D.moveCount; m++) if (D.movePP(m) > 0 && !BAN_MOVE.has(norm(D.moveName(m)))) movePool.add(m);
-    if (movePool.size < 300) for (const s of allSpecies) for (const e of D.learnEntries(s)) { const m = u16(e); if (m > 0 && m < D.moveCount && !BAN_MOVE.has(norm(D.moveName(m)))) movePool.add(m); }
-    const moves = [...movePool];
-    const doneLists = new Set();
+    // ---- level-up moves, the way Universal Pokémon Randomizer does it ("completely random", 4 guaranteed moves) ----
+    // Valid moves: everything with battle data except Struggle and HMs. The last level-1 move is always a good damaging
+    // move whose category (physical/special) follows the Pokémon's Attack vs Sp. Atk; if a Pokémon learns fewer than 4
+    // moves at level 1, extra level-1 slots are added. Lists are rebuilt in free space, since they can grow.
+    const HMS = new Set(['cut', 'fly', 'surf', 'strength', 'flash', 'rocksmash', 'waterfall', 'dive']);
+    const NOT_DAMAGING = new Set(['selfdestruct', 'dreameater', 'explosion', 'snore', 'falseswipe', 'futuresight', 'fakeout', 'focuspunch',
+      'doomdesire', 'feint', 'lastresort', 'suckerpunch', 'constrict', 'rage', 'rollout', 'iceball', 'synchronoise', 'shelltrap', 'foulplay',
+      'spitup', 'sonicboom', 'dragonrage', 'horndrill', 'guillotine', 'fissure', 'sheercold']);
+    const MULTI2 = new Set(['bonemerang', 'doublehit', 'doubleironbash', 'doublekick', 'dragondarts', 'dualchop', 'geargrind', 'twineedle', 'dualwingbeat', 'twinbeam']);
+    const MULTI5 = new Set(['armthrust', 'barrage', 'bonerush', 'bulletseed', 'cometpunch', 'doubleslap', 'furyattack', 'furyswipes', 'iciclespear', 'pinmissile', 'rockblast', 'spikecannon', 'tailslap', 'watershuriken', 'scaleshot']);
+    const md = (m, k) => R[D.moveData + m * 12 + k];
+    const validMoves = [], damaging = [];
+    for (let m = 1; m < D.moveCount; m++) {
+      const nm = norm(D.moveName(m));
+      if (!D.movePP(m) || nm === 'struggle' || HMS.has(nm)) continue;
+      validMoves.push(m);
+      const pow = md(m, 2) * (MULTI2.has(nm) ? 2 : MULTI5.has(nm) ? 3 : 1), acc = md(m, 5);
+      if (!NOT_DAMAGING.has(nm) && md(m, 4) !== 2 && (pow >= 100 || (pow >= 50 && (acc >= 90 || acc === 0)))) damaging.push(m);
+    }
+    const readList = (s) => D.learnEntries(s).map((e) => ({ move: u16(e), level: R[e + 2] }));
+    const writeList = (s, list) => {
+      const at = free; free += list.length * 3 + 3;
+      list.forEach((x, k) => { w16(at + k * 3, x.move); R[at + k * 3 + 2] = x.level; });
+      w16(at + list.length * 3, 0); R[at + list.length * 3 + 2] = 0xFF;
+      w32(D.learn + s * 4, at + 0x08000000);
+    };
     for (const s of allSpecies) {
-      const es = D.learnEntries(s); if (!es.length || doneLists.has(es[0])) continue; doneLists.add(es[0]);
+      const list = readList(s); if (!list.length) continue;
       if (opts.moves) {
-        const used = new Set(); let lv1 = 0;
-        for (const e of es) {
-          let m; do { m = rnd.pick(moves); } while (used.has(m)); used.add(m); w16(e, m);
-          if (R[e + 2] !== 0 && lv1 < 4) { R[e + 2] = 1; lv1++; }
+        // 4 starting moves: add level-1 slots after any evolution (level 0) moves
+        const lv1count = list.filter((x) => x.level === 1).length;
+        let firstReal = 0; while (firstReal < list.length && list[firstReal].level === 0) firstReal++;
+        for (let k = lv1count; k < 4; k++) list.splice(firstReal, 0, { move: 0, level: 1 });
+        // last level-1 move
+        let lv1index = firstReal; while (lv1index < list.length && list[lv1index].level === 1) lv1index++;
+        if (lv1index > 0) lv1index--;
+        const o = D.stats + s * D.statSize, ratio = R[o + 1] / ((R[o + 1] + R[o + 4]) || 1);
+        const learnt = []; let lv1Attack = 0;
+        for (let i = 0; i < list.length; i++) {
+          let pickList = validMoves;
+          if (i === lv1index) {
+            pickList = damaging.some((m) => !learnt.includes(m)) ? damaging : validMoves;
+            const cat = rnd.next() < ratio ? 0 : 1, filt = pickList.filter((m) => md(m, 4) === cat);
+            if (filt.some((m) => !learnt.includes(m))) pickList = filt;
+          }
+          let m = rnd.pick(pickList); while (learnt.includes(m)) m = rnd.pick(pickList);
+          if (i === lv1index) lv1Attack = m;
+          learnt.push(m);
         }
+        // shuffle, keeping the damaging move in the last level-1 slot
+        for (let i = learnt.length - 1; i > 0; i--) { const j = rnd.int(i + 1); [learnt[i], learnt[j]] = [learnt[j], learnt[i]]; }
+        const at = learnt.indexOf(lv1Attack); [learnt[at], learnt[lv1index]] = [learnt[lv1index], learnt[at]];
+        learnt.forEach((m, i) => { list[i].move = m; });
+        list[lv1index].level = 1;
+        writeList(s, list);
       } else {
-        // keep MaxDex's moves, but fill its blank entries so nothing starts with no moves
-        const used = new Set(es.map((e) => u16(e)));
-        for (const e of es) if (!u16(e)) { let m; do { m = rnd.pick(moves); } while (used.has(m)); used.add(m); w16(e, m); }
+        // Casual keeps MaxDex's moves but fills its blank entries (the game stops reading a list at a blank one)
+        const used = new Set(list.map((x) => x.move));
+        let changed = false;
+        for (const x of list) if (!x.move) { let m; do { m = rnd.pick(validMoves); } while (used.has(m)); used.add(m); x.move = m; changed = true; }
+        if (changed) writeList(s, list);
       }
     }
 
@@ -365,7 +406,6 @@ const KPMaxDex = (() => {
     };
     // held items trainers may get in Super Kaizo: consumable battle items
     const TRAINER_ITEMS = [133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 168, 169, 170, 171, 172, 173, 174, 175, 179, 183, 186, 187, 191, 196, 197, 198, 200, 204, 207, 209, 210, 211, 212, 214, 215, 216, 217, 218, 219, 220, 221];
-    let free = D.free;
     log.push('--Trainers--');
     for (let t = 0; t < D.trainerCount; t++) {
       const o = D.trainers + t * 40, flags = R[o], cls = R[o + 1], size = R[o + 32];

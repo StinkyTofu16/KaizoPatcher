@@ -8,7 +8,11 @@ const KPGen3 = (() => {
     RS: { party: 0x234, flags: 0x1220, badge0: 0x807, champ: 0x804 },
     FRLG: { party: 0x034, flags: 0x0EE0, badge0: 0x820, champ: 0x82C },
   };
-  const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG' };
+  LAYOUT.FRLGMAX = LAYOUT.FRLG;
+  // "BPRX" is used for FireRed MaxDex (its game code is FireRed's): its RAM moved and it has 1,280 species.
+  const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG', BPRX: 'FRLGMAX' };
+  const MAX_SPECIES = { FRLGMAX: 1290 };
+  const maxSp = (code) => MAX_SPECIES[FAMILY[code]] || 411;
   const ORDERS = ['GAEM', 'GAME', 'GEAM', 'GEMA', 'GMAE', 'GMEA', 'AGEM', 'AGME', 'AEGM', 'AEMG', 'AMGE', 'AMEG',
     'EGAM', 'EGMA', 'EAGM', 'EAMG', 'EMGA', 'EMAG', 'MGAE', 'MGEA', 'MAGE', 'MAEG', 'MEGA', 'MEAG'];
 
@@ -76,7 +80,7 @@ const KPGen3 = (() => {
       if (sum !== bdv.getUint16(m + 0x1C, true)) return null;
       const g = ORDERS[pid % 24].indexOf('G');
       const sp = words[g * 3] & 0xFFFF, level = blk[m + 0x54];
-      if (!sp || sp > 411 || level < 1 || level > 100) return null;
+      if (!sp || sp > maxSp(gameCode) || level < 1 || level > 100) return null;
       const info = species && species[sp];
       return { species: sp, dex: info ? info[1] : 0, name: info ? info[0] : '#' + sp, nickname: decodeText(blk, m + 8, 10), level };
     }
@@ -101,6 +105,7 @@ const KPGen3 = (() => {
     E:    { partyCount: 0x020244E9, party: 0x020244EC, sb1Ptr: 0x03005D8C, sb2Ptr: 0x03005D90 },
     FRLG: { partyCount: 0x02024029, party: 0x02024284, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C },
     RS:   { partyCount: 0x03004350, party: 0x03004360, sb1: 0x02025734, sb2: 0x02024EA4 },
+    FRLGMAX: { partyCount: 0x02024075, party: 0x020242D0, sb1Ptr: 0x03004C38, sb2Ptr: 0x03004C3C },
   };
   // mGBA's serialized state: IWRAM at 0x19000 (32 KB), EWRAM at 0x21000 (256 KB). RetroArch may wrap it in "RASTATE" chunks.
   function stateMemory(state) {
@@ -135,7 +140,7 @@ const KPGen3 = (() => {
       for (let w = 0; w < 12; w++) { const v = (dv.getUint32(m + 0x20 + w * 4, true) ^ key) >>> 0; words.push(v); sum = (sum + (v & 0xFFFF) + (v >>> 16)) & 0xFFFF; }
       if (sum !== dv.getUint16(m + 0x1C, true)) return null;
       const sp = words[ORDERS[pid % 24].indexOf('G') * 3] & 0xFFFF, level = buf[m + 0x54];
-      if (!sp || sp > 411 || level < 1 || level > 100) return null;
+      if (!sp || sp > maxSp(gameCode) || level < 1 || level > 100) return null;
       const info = species && species[sp];
       return { species: sp, dex: info ? info[1] : 0, name: info ? info[0] : '#' + sp, nickname: decodeText(buf, m + 8, 10), level };
     }

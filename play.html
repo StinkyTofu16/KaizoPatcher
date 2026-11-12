@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=c1c4062a3f">
+<link rel="manifest" href="manifest.webmanifest?v=d7283fd378">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,10 +118,10 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=c1c4062a3f"></script>
-<script src="kp-random.js?v=c1c4062a3f"></script>
-<script src="kp-maxdex.js?v=c1c4062a3f"></script>
-<script src="kp-gen3.js?v=c1c4062a3f"></script>
+<script src="kp-store.js?v=d7283fd378"></script>
+<script src="kp-random.js?v=d7283fd378"></script>
+<script src="kp-maxdex.js?v=d7283fd378"></script>
+<script src="kp-gen3.js?v=d7283fd378"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -250,7 +250,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
     $('logBtn').hidden = !(run && run.hasLog);
     $('introSkip').hidden = !startSave;
   };
-  const gameCode = setup.code || '';
+  const gameCode = /MaxDex/.test(setup.fam || '') ? 'BPRX' : (setup.code || '');
   // A starter save must be from before the first Pokémon; otherwise every run would start with that same Pokémon.
   const starterIsClean = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !p || p.party.length === 0; } catch (e) { return true; } };
   let starterNote = '';
@@ -261,7 +261,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=c1c4062a3f')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=d7283fd378')).json(); } catch (e) { presets = {}; }
   if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {

@@ -4,7 +4,7 @@
 //   const t = KPTracker.load(romArrayBuffer)   -> tracker or null if the game isn't supported
 //   t.read(stateBytes) -> { mon, foe } (either may be null)
 const KPTracker = (() => {
-  const TYPES = ['Normal', 'Fighting', 'Flying', 'Poison', 'Ground', 'Rock', 'Bug', 'Ghost', 'Steel', '???', 'Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark'];
+  const TYPES = ['Normal', 'Fighting', 'Flying', 'Poison', 'Ground', 'Rock', 'Bug', 'Ghost', 'Steel', '???', 'Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark', 'Fairy'];
   // Gen 3 type chart: attacking type -> {defending type: multiplier}, only the entries that aren't ×1.
   const CHART = {
     Normal: { Rock: .5, Steel: .5, Ghost: 0 },
@@ -25,7 +25,14 @@ const KPTracker = (() => {
     Dark: { Fighting: .5, Psychic: 2, Ghost: 2, Dark: .5, Steel: .5 },
     Steel: { Fire: .5, Water: .5, Electric: .5, Ice: 2, Rock: 2, Steel: .5 },
   };
-  const effectiveness = (moveType, defTypes) => defTypes.reduce((m, d) => m * ((CHART[moveType] || {})[d] ?? 1), 1);
+  // Gen 6+ chart (FireRed MaxDex): adds Fairy, and Steel no longer resists Ghost and Dark.
+  const MODERN = JSON.parse(JSON.stringify(CHART));
+  delete MODERN.Ghost.Steel; delete MODERN.Dark.Steel;
+  Object.assign(MODERN.Fighting, { Fairy: .5 }); Object.assign(MODERN.Poison, { Fairy: 2 }); Object.assign(MODERN.Bug, { Fairy: .5 });
+  Object.assign(MODERN.Steel, { Fairy: 2 }); Object.assign(MODERN.Fire, { Fairy: 1 }); Object.assign(MODERN.Dragon, { Fairy: 0 }); Object.assign(MODERN.Dark, { Fairy: .5 });
+  MODERN.Fairy = { Fire: .5, Poison: .5, Steel: .5, Fighting: 2, Dragon: 2, Dark: 2 };
+  let chart = CHART;
+  const effectiveness = (moveType, defTypes) => defTypes.reduce((m, d) => m * ((chart[moveType] || {})[d] ?? 1), 1);
   const NATURE_STATS = ['ATK', 'DEF', 'SPE', 'SPA', 'SPD'];
   // HP restored by healing items (item id -> HP; Infinity = full heal). Gen 3 item ids.
   const HEALS = { 13: 20, 19: Infinity, 20: Infinity, 21: 200, 22: 50, 26: 50, 27: 60, 28: 80, 29: 100, 30: 50, 31: 200, 44: 20, 139: 10, 142: 30 };
@@ -37,6 +44,9 @@ const KPTracker = (() => {
     E:    { party: 0x020244EC, partyCount: 0x020244E9, enemy: 0x02024744, gMain: 0x030022C0, battleMons: 0x02024084, sb1Ptr: 0x03005D8C, sb2Ptr: 0x03005D90,
             items: [0x560, 30], berries: [0x790, 46], keyOff: 0xAC },
     FRLG: { party: 0x02024284, partyCount: 0x02024029, enemy: 0x0202402C, gMain: 0x030030F0, battleMons: 0x02023BE4, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C,
+            items: [0x310, 42], berries: [0x54C, 43], keyOff: 0xF20 },
+    // FireRed MaxDex is rebuilt from source, so its RAM moved (found by matching its code against FireRed's).
+    FRLGMAX: { party: 0x020242D0, partyCount: 0x02024075, enemy: 0x02024078, gMain: 0x03002D20, battleMons: 0x02023BE4, sb1Ptr: 0x03004C38, sb2Ptr: 0x03004C3C,
             items: [0x310, 42], berries: [0x54C, 43], keyOff: 0xF20 },
     RS:   { party: 0x03004360, partyCount: 0x03004350, enemy: 0x030045C0, gMain: null, battleMons: 0x02024A80, sb1: 0x02025734, sb2: 0x02024EA4,
             items: [0x560, 20], berries: [0x740, 46], keyOff: null },
@@ -132,37 +142,88 @@ const KPTracker = (() => {
     return out;
   }
 
+  // FireRed MaxDex: 1,280 species and Gen 9 moves in its own formats (names in mixed case, 32-byte base stats,
+  // 17-letter move and ability names, 3-byte level-up entries).
+  function locateMaxDex(rom) {
+    const dv = new DataView(rom.buffer, rom.byteOffset, rom.byteLength), u32 = (o) => dv.getUint32(o, true);
+    const T = {};
+    let i = find(rom, [...enc('Bulbasaur'), 0xFF]); if (i < 0) return null; T.species = i - 11;
+    // base stats: FireRed's code points to the table at 0x1BC (stats are randomized, so their values can't be searched);
+    // Bulbasaur and Ivysaur are Grass/Poison and Charmander is Fire, which gives the entry size.
+    T.stats = u32(0x1BC) - 0x08000000;
+    for (const S of [28, 32, 36, 40]) {
+      const e = (k) => T.stats + S * k + 6;
+      if (rom[e(1)] === 12 && rom[e(1) + 1] === 3 && rom[e(2)] === 12 && rom[e(2) + 1] === 3 && rom[e(4)] === 10 && rom[e(4) + 1] === 10) { T.statSize = S; break; }
+    }
+    if (!T.statSize) return null;
+    // species names run until the move names, which start with spaces
+    T.count = 1; while (T.count < 3000 && rom[T.species + 11 * T.count] !== 0x00 && rom[T.species + 11 * T.count] !== 0xFF) T.count++;
+    for (let k = find(rom, [...enc('Pound'), 0xFF]); k !== -1 && T.moveNames === undefined; k = find(rom, [...enc('Pound'), 0xFF], k + 1)) {
+      for (const L of [13, 17, 21]) if (decode(rom, k + L, L) === 'Karate Chop') { T.moveNames = k - L; T.moveNameLen = L; }
+    }
+    for (let k = find(rom, [0, 0, 40, 0, 0, 100, 35]); k !== -1 && T.moves === undefined; k = find(rom, [0, 0, 40, 0, 0, 100, 35], k + 1)) {
+      if (rom[k + 14] === 50 && rom[k + 17] === 100 && rom[k + 18] === 25) T.moves = k - 12;
+    }
+    i = find(rom, [...enc('Stench'), 0xFF]);
+    for (const L of [13, 17, 21]) if (i >= 0 && decode(rom, i + L, L) === 'Drizzle') { T.abilities = i - L; T.abilLen = L; }
+    i = find(rom, [...enc('MASTER BALL'), 0xFF]); T.items = i >= 0 ? i - 44 : -1;
+    // level-up moves: a table of one pointer per species, each to 3-byte {move, level} entries ending at level 0xFF
+    const isP = (v) => v >= 0x08000000 && v < 0x08000000 + rom.length;
+    const listOk = (p) => { let o = p - 0x08000000, prev = 0; for (let k = 0; k < 120; k++, o += 3) { const l = rom[o + 2]; if (l === 0xFF) return k > 0; if (l > 100 || l < prev) return false; prev = l; } return false; };
+    for (let o = 0; o + 4 * T.count <= rom.length && T.learnsets === undefined; o += 4) {
+      if (!isP(u32(o)) || !isP(u32(o + 4 * (T.count - 2))) || !isP(u32(o + 4)) || !isP(u32(o + 8))) continue;
+      let ok = true; for (let k = 1; k < T.count - 1 && ok; k += 37) ok = isP(u32(o + 4 * k)) && listOk(u32(o + 4 * k));
+      if (ok) T.learnsets = o;
+    }
+    if (T.moveNames === undefined || T.moves === undefined || T.abilities === undefined) return null;
+    if (T.learnsets === undefined) T.learnsets = -1;
+    return T;
+  }
+
   function load(romBuf) {
     const rom = romBuf instanceof Uint8Array ? romBuf : new Uint8Array(romBuf);
     const code = String.fromCharCode(...rom.subarray(0xAC, 0xB0));
-    const fam = FAMILY[code];
+    let fam = FAMILY[code];
     if (!fam || typeof KPGen3 === 'undefined') return null;
-    const T = locate(rom, code);
+    const MX = fam === 'FRLG' ? locateMaxDex(rom) : null;
+    if (MX) fam = 'FRLGMAX';
+    chart = MX ? MODERN : CHART;
+    const T = MX || locate(rom, code);
     if (T.species < 0 || T.moveNames < 0 || T.stats < 0 || T.moves < 0) return null;
+    // Table formats: FireRed/Emerald's, or MaxDex's.
+    const F = MX ? { maxSp: T.count, statSize: T.statSize, maxMove: 2000, moveNameLen: T.moveNameLen, mPow: 2, mType: 3, mAcc: 5, mPP: 6, abilLen: T.abilLen }
+      : { maxSp: 412, statSize: 28, maxMove: 355, moveNameLen: 13, mPow: 1, mType: 2, mAcc: 3, mPP: 4, abilLen: 13 };
     const cache = {};
     const species = (i) => {
-      if (!(i > 0 && i < 412)) return null;
+      if (!(i > 0 && i < F.maxSp)) return null;
       if (cache[i]) return cache[i];
-      const e = T.stats + 28 * i;
-      const s = { name: nice(nameAt(rom, T.species, 11, i, 11)), base: [rom[e], rom[e + 1], rom[e + 2], rom[e + 3], rom[e + 4], rom[e + 5]],
-        types: [...new Set([TYPES[rom[e + 6]], TYPES[rom[e + 7]]])], abilities: [rom[e + 22], rom[e + 23]] };
+      const e = T.stats + F.statSize * i;
+      const s = { name: MX ? nameAt(rom, T.species, 11, i, 11) : nice(nameAt(rom, T.species, 11, i, 11)), base: [rom[e], rom[e + 1], rom[e + 2], rom[e + 3], rom[e + 4], rom[e + 5]],
+        types: [...new Set([TYPES[rom[e + 6]], TYPES[rom[e + 7]]])], abilities: MX ? [rom[e + 22], rom[e + 24]] : [rom[e + 22], rom[e + 23]] };
       s.bst = s.base.reduce((a, b) => a + b, 0);
+      if (!s.name || !s.bst) return null;
       return (cache[i] = s);
     };
     const move = (i) => {
-      if (!(i > 0 && i < 355)) return null;
+      if (!(i > 0 && i < F.maxMove)) return null;
       const e = T.moves + 12 * i;
-      return { id: i, name: nice(nameAt(rom, T.moveNames, 13, i, 13)), power: rom[e + 1], type: TYPES[rom[e + 2]], acc: rom[e + 3], pp: rom[e + 4] };
+      const name = nameAt(rom, T.moveNames, F.moveNameLen, i, F.moveNameLen);
+      if (!name || !rom[e + F.mPP]) return null;
+      return { id: i, name: MX ? name : nice(name), power: rom[e + F.mPow], type: TYPES[rom[e + F.mType]] || '???', acc: rom[e + F.mAcc], pp: rom[e + F.mPP] };
     };
     // Levels at which a species learns moves, from the (randomized) level-up lists.
     const learnLevels = (sp) => {
-      if (T.learnsets < 0 || !(sp > 0 && sp < 412)) return [];
+      if (T.learnsets < 0 || !(sp > 0 && sp < F.maxSp)) return [];
       let p = ((rom[T.learnsets + 4 * sp] | (rom[T.learnsets + 4 * sp + 1] << 8) | (rom[T.learnsets + 4 * sp + 2] << 16)) >>> 0);
       const out = [];
+      if (MX) { // 3-byte {move, level} entries; the game stops at the first empty move
+        for (let k = 0; k < 120 && p + 2 < rom.length; k++, p += 3) { const mv = rom[p] | (rom[p + 1] << 8); if (rom[p + 2] === 0xFF || !mv) break; out.push(rom[p + 2]); }
+        return out;
+      }
       for (let k = 0; k < 40 && p + 1 < rom.length; k++, p += 2) { const w = rom[p] | (rom[p + 1] << 8); if (w === 0xFFFF) break; out.push(w >> 9); }
       return out;
     };
-    const ability = (i) => (T.abilities >= 0 && i > 0 ? nice(nameAt(rom, T.abilities, 13, i, 13)) : '');
+    const ability = (i) => (T.abilities >= 0 && i > 0 ? nice(nameAt(rom, T.abilities, F.abilLen, i, F.abilLen)) : '');
     const item = (i) => (T.items >= 0 && i > 0 && i < 377 ? nice(nameAt(rom, T.items, 44, i, 14)) : '');
     const A = LIVE[fam];
 
@@ -259,7 +320,7 @@ const KPTracker = (() => {
           // Current types (abilities like Color Change and moves like Conversion change them in battle). Trusted only
           // when the record's ability byte is one of this species' abilities, i.e. the record is read at the right spot.
           const info = species(m.species), t1 = ew[off + 0x21], t2 = ew[off + 0x22];
-          if (info && info.abilities.includes(ew[off + 0x20]) && t1 <= 17 && t2 <= 17 && t1 !== 9 && t2 !== 9) m.types = [...new Set([TYPES[t1], TYPES[t2]])];
+          if (info && info.abilities.includes(ew[off + 0x20]) && t1 < TYPES.length && t2 < TYPES.length && t1 !== 9 && t2 !== 9) m.types = [...new Set([TYPES[t1], TYPES[t2]])];
           const st = ew[off + 0x4C];
           m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
           return m;

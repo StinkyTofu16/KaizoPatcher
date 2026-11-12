@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=c1c4062a3f">
+<link rel="manifest" href="manifest.webmanifest?v=d7283fd378">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,12 +240,12 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=c1c4062a3f"></script>
-<script src="kp-config.js?v=c1c4062a3f"></script>
-<script src="kp-gen3.js?v=c1c4062a3f"></script>
-<script src="kp-cloud.js?v=c1c4062a3f"></script>
-<script src="kp-tracker.js?v=c1c4062a3f"></script>
-<script src="kp-corecache.js?v=c1c4062a3f"></script>
+<script src="kp-store.js?v=d7283fd378"></script>
+<script src="kp-config.js?v=d7283fd378"></script>
+<script src="kp-gen3.js?v=d7283fd378"></script>
+<script src="kp-cloud.js?v=d7283fd378"></script>
+<script src="kp-tracker.js?v=d7283fd378"></script>
+<script src="kp-corecache.js?v=d7283fd378"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -278,9 +278,24 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=c1c4062a3f').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  // FireRed MaxDex: memory and species differ from FireRed's, so it's read as "BPRX", with names from the game file.
+  const maxdex = /MaxDex/.test(setup.fam || '');
+  const readCode = maxdex ? 'BPRX' : gameCode;
+  fetch('gen3-species.json?v=d7283fd378').then((r) => r.json()).then((j) => {
+    if (maxdex) {
+      const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
+      let base = -1; const pat = [0xBC, 0xE9, 0xE0, 0xD6, 0xD5, 0xE7, 0xD5, 0xE9, 0xE6, 0xFF]; // "Bulbasaur"
+      for (let i = rom.indexOf(pat[0]); i !== -1; i = rom.indexOf(pat[0], i + 1)) { if (pat.every((b, k) => rom[i + k] === b)) { base = i - 11; break; } }
+      if (base >= 0) {
+        const out = [];
+        for (let i = 0; i < 1290 && rom[base + 11 * i] !== 0x00; i++) out.push([names(rom, base + 11 * i, 11), i <= 411 ? (j[i] ? j[i][1] : 0) : i <= 1050 ? i - 25 : 0]);
+        j = out;
+      }
+    }
+    species = j;
+  }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
-  const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
+  const hasParty = (buf) => { try { const p = KPGen3.read(buf, readCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
   // The account service loads after the game is running, to keep memory free while the emulator starts.
   let cloudOn = false;
@@ -318,15 +333,15 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     try {
       e.gameManager.saveSaveFiles();
       const data = e.gameManager.getSaveFile(false);
-      const fromSave = data && data.length ? KPGen3.read(data, gameCode, species) : null;
+      const fromSave = data && data.length ? KPGen3.read(data, readCode, species) : null;
       // Live game memory (like the IronMON Tracker), so progress shows without saving in the game.
       let live = null;
       try {
-        const st = e.gameManager.getState(); if (st && st.length) live = KPGen3.readLive(st, gameCode, species, data);
+        const st = e.gameManager.getState(); if (st && st.length) live = KPGen3.readLive(st, readCode, species, data);
         // The team only counts if a second read a moment later agrees (no brief leftovers from memory).
         if (live && live.party.length) {
           await new Promise((r) => setTimeout(r, 700));
-          const st2 = e.gameManager.getState(), again = st2 && st2.length ? KPGen3.readLive(st2, gameCode, species, data) : null;
+          const st2 = e.gameManager.getState(), again = st2 && st2.length ? KPGen3.readLive(st2, readCode, species, data) : null;
           const sig = (p) => p ? p.party.map((m) => m.species).join(',') : '';
           if (sig(again) !== sig(live)) live.party = [];
         }
@@ -434,7 +449,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     applyTracker();
   }
   const TYPEC = { Normal: '#9a9a78', Fire: '#e8803a', Water: '#5c8ae8', Grass: '#6abf4b', Electric: '#e8c430', Ice: '#80cfcf', Fighting: '#b8352c', Poison: '#9a46a0',
-    Ground: '#d8b45a', Flying: '#9a86e8', Psychic: '#ee5888', Bug: '#a2b220', Rock: '#b49c3a', Ghost: '#6a5494', Dragon: '#6a3cf0', Dark: '#6a5446', Steel: '#b4b4cc', '???': '#68a090' };
+    Ground: '#d8b45a', Flying: '#9a86e8', Psychic: '#ee5888', Bug: '#a2b220', Rock: '#b49c3a', Ghost: '#6a5494', Dragon: '#6a3cf0', Dark: '#6a5446', Steel: '#b4b4cc', Fairy: '#e898c8', '???': '#68a090' };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const tyChip = (t) => '<span class="ty" style="background:' + (TYPEC[t] || '#68a090') + '">' + esc(t) + '</span>';
   const dot = (t) => '<span class="dot" style="background:' + (TYPEC[t] || '#68a090') + '"></span>';
