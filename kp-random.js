@@ -15,6 +15,7 @@ const KPRandom = (() => {
     return ready;
   }
   async function readFile(path) { try { return await cjFileBlob(path); } catch (e) { return null; } }
+  let usedJar = null;
   async function run(romBytes, ext, presetFile, onStatus) {
     onStatus && onStatus('Loading the randomizer…');
     await load();
@@ -27,7 +28,11 @@ const KPRandom = (() => {
     if (!sres.ok) throw new Error('Couldn’t download the preset. Try again.');
     cheerpOSAddStringFile(setPath, new Uint8Array(await sres.arrayBuffer()));
     const base = '/app' + new URL('randomizer/', location.href).pathname;
-    await cheerpjRunMain('KpCli', base + 'PokeRandoZX.jar:' + base + 'kp-cli.jar',
+    // Nat. Dex presets (presets/natdex/…) run with the Nat. Dex build of the randomizer; Java keeps the first one loaded.
+    const jar = /^natdex\//.test(presetFile) ? 'randomizer_natdex.jar' : 'PokeRandoZX.jar';
+    if (usedJar && usedJar !== jar) throw new Error('Reload the page to switch between Nat. Dex and regular games.');
+    usedJar = jar;
+    await cheerpjRunMain('KpCli', base + jar + ':' + base + 'kp-cli.jar',
       '--clean=/files', '--tmp=/files/kptmp', '--log=' + logPath, '--result=' + resPath, '-s', setPath, '-i', inPath, '-o', outPath, '-l');
     const res = await readFile(resPath), code = res ? (await res.text()).trim() : '';
     if (code !== '0') {

@@ -8,6 +8,8 @@ To use your own domain, add it in the host's domain settings and follow its DNS 
 
 Randomizer: randomizer/PokeRandoZX.jar is Universal Pokemon Randomizer ZX 4.6.1, licensed GPLv3.
 Source: https://github.com/Ajarmar/universal-pokemon-randomizer-zx
+randomizer/randomizer_natdex.jar is the Nat. Dex Extension 1.2.1 build of the randomizer by CyanSMP64, licensed GPLv3,
+from https://github.com/CyanSMP64/NatDexExtension/releases (its release notes link the source code); used for Nat. Dex games.
 randomizer/kp-cli.jar is a small wrapper (source: randomizer/KpCli.java) that runs its command-line mode.
 The randomizer runs in the browser with CheerpJ (cheerpj.com), loaded from Leaning Technologies' servers.
 CheerpJ is free for personal, non-commercial sites; check their license if the site makes money.

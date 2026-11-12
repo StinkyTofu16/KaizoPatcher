@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=7458c5a70a">
+<link rel="manifest" href="manifest.webmanifest?v=2a1cb516d3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -194,7 +194,7 @@ footer { color: var(--muted); font-size: .82rem; }
     </table></div>
   </section>
 
-  <footer>Patch engines for IPS, UPS, BPS and xdelta run in this page. Randomizing uses <a href="https://github.com/Ajarmar/universal-pokemon-randomizer-zx">Universal Pokémon Randomizer ZX</a> 4.6.1 (GPLv3), run in your browser with <a href="https://cheerpj.com">CheerpJ</a>.</footer>
+  <footer>Patch engines for IPS, UPS, BPS and xdelta run in this page. Randomizing uses <a href="https://github.com/Ajarmar/universal-pokemon-randomizer-zx">Universal Pokémon Randomizer ZX</a> 4.6.1 (GPLv3), run in your browser with <a href="https://cheerpj.com">CheerpJ</a>. Nat. Dex games use the <a href="https://github.com/CyanSMP64/NatDexExtension">Nat. Dex Extension</a> build of the randomizer by CyanSMP64 (GPLv3).</footer>
 </div>
 
 <script>
@@ -504,7 +504,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=7458c5a70a"></script>
+<script src="kp-store.js?v=2a1cb516d3"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -593,7 +593,7 @@ function renderCatalog(matchIds) {
 renderCatalog(null);
 
 // ---------- ROM identification ----------
-const PRESETS = {"B2W2": [{"file": "B2W2_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "B2W2_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "B2W2_Kaizo.rnqs", "name": "Kaizo"}, {"file": "B2W2_Standard.rnqs", "name": "Standard"}, {"file": "B2W2_Survival.rnqs", "name": "Survival"}, {"file": "B2W2_Ultimate.rnqs", "name": "Ultimate"}], "BW": [{"file": "BW_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "BW_Kaizo.rnqs", "name": "Kaizo"}, {"file": "BW_Standard.rnqs", "name": "Standard"}, {"file": "BW_Survival.rnqs", "name": "Survival"}, {"file": "BW_Ultimate.rnqs", "name": "Ultimate"}], "DPPt": [{"file": "DPPt_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "DPPt_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "DPPt_Kaizo.rnqs", "name": "Kaizo"}, {"file": "DPPt_Standard.rnqs", "name": "Standard"}, {"file": "DPPt_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "DPPt_Survival.rnqs", "name": "Survival"}, {"file": "DPPt_Ultimate.rnqs", "name": "Ultimate"}], "FRLG": [{"file": "FRLG_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "FRLG_Evo_Kaizo.rnqs", "name": "Evo Kaizo"}, {"file": "FRLG_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "FRLG_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "FRLG_Kaizo.rnqs", "name": "Kaizo"}, {"file": "FRLG_Standard.rnqs", "name": "Standard"}, {"file": "FRLG_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "FRLG_Survival_Revival.rnqs", "name": "Survival Revival"}, {"file": "FRLG_Survival.rnqs", "name": "Survival"}, {"file": "FRLG_Ultimate.rnqs", "name": "Ultimate"}], "GSC": [{"file": "GSC_Kaizo.rnqs", "name": "Kaizo"}, {"file": "GSC_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "GSC_Standard.rnqs", "name": "Standard"}, {"file": "GSC_Survival.rnqs", "name": "Survival"}, {"file": "GSC_Ultimate.rnqs", "name": "Ultimate"}], "HGSS": [{"file": "HGSS_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "HGSS_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "HGSS_Kaizo.rnqs", "name": "Kaizo"}, {"file": "HGSS_Standard.rnqs", "name": "Standard"}, {"file": "HGSS_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "HGSS_Survival.rnqs", "name": "Survival"}, {"file": "HGSS_Ultimate.rnqs", "name": "Ultimate"}], "RBY": [{"file": "RBY_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RBY_PART_2.rnqs", "name": "PART 2"}, {"file": "RBY_Standard.rnqs", "name": "Standard"}, {"file": "RBY_Survival.rnqs", "name": "Survival"}, {"file": "RBY_Ultimate.rnqs", "name": "Ultimate"}], "RSE": [{"file": "RSE_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "RSE_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "RSE_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "RSE_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RSE_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "RSE_Standard.rnqs", "name": "Standard"}, {"file": "RSE_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "RSE_Survival.rnqs", "name": "Survival"}, {"file": "RSE_Ultimate.rnqs", "name": "Ultimate"}]};
+const PRESETS = {"B2W2": [{"file": "B2W2_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "B2W2_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "B2W2_Kaizo.rnqs", "name": "Kaizo"}, {"file": "B2W2_Standard.rnqs", "name": "Standard"}, {"file": "B2W2_Survival.rnqs", "name": "Survival"}, {"file": "B2W2_Ultimate.rnqs", "name": "Ultimate"}], "BW": [{"file": "BW_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "BW_Kaizo.rnqs", "name": "Kaizo"}, {"file": "BW_Standard.rnqs", "name": "Standard"}, {"file": "BW_Survival.rnqs", "name": "Survival"}, {"file": "BW_Ultimate.rnqs", "name": "Ultimate"}], "DPPt": [{"file": "DPPt_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "DPPt_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "DPPt_Kaizo.rnqs", "name": "Kaizo"}, {"file": "DPPt_Standard.rnqs", "name": "Standard"}, {"file": "DPPt_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "DPPt_Survival.rnqs", "name": "Survival"}, {"file": "DPPt_Ultimate.rnqs", "name": "Ultimate"}], "FRLG": [{"file": "FRLG_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "FRLG_Evo_Kaizo.rnqs", "name": "Evo Kaizo"}, {"file": "FRLG_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "FRLG_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "FRLG_Kaizo.rnqs", "name": "Kaizo"}, {"file": "FRLG_Standard.rnqs", "name": "Standard"}, {"file": "FRLG_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "FRLG_Survival_Revival.rnqs", "name": "Survival Revival"}, {"file": "FRLG_Survival.rnqs", "name": "Survival"}, {"file": "FRLG_Ultimate.rnqs", "name": "Ultimate"}], "GSC": [{"file": "GSC_Kaizo.rnqs", "name": "Kaizo"}, {"file": "GSC_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "GSC_Standard.rnqs", "name": "Standard"}, {"file": "GSC_Survival.rnqs", "name": "Survival"}, {"file": "GSC_Ultimate.rnqs", "name": "Ultimate"}], "HGSS": [{"file": "HGSS_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "HGSS_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "HGSS_Kaizo.rnqs", "name": "Kaizo"}, {"file": "HGSS_Standard.rnqs", "name": "Standard"}, {"file": "HGSS_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "HGSS_Survival.rnqs", "name": "Survival"}, {"file": "HGSS_Ultimate.rnqs", "name": "Ultimate"}], "RBY": [{"file": "RBY_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RBY_PART_2.rnqs", "name": "PART 2"}, {"file": "RBY_Standard.rnqs", "name": "Standard"}, {"file": "RBY_Survival.rnqs", "name": "Survival"}, {"file": "RBY_Ultimate.rnqs", "name": "Ultimate"}], "RSE": [{"file": "RSE_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "RSE_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "RSE_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "RSE_Kaizo.rnqs", "name": "Kaizo"}, {"file": "RSE_PRE-PASS.rnqs", "name": "PRE-PASS"}, {"file": "RSE_Standard.rnqs", "name": "Standard"}, {"file": "RSE_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "RSE_Survival.rnqs", "name": "Survival"}, {"file": "RSE_Ultimate.rnqs", "name": "Ultimate"}], "FRLG NatDex": [{"file": "natdex/FRLG_NatDex_v1.2_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "natdex/FRLG_NatDex_v1.2_Evo_Kaizo.rnqs", "name": "Evo Kaizo"}, {"file": "natdex/FRLG_NatDex_v1.2_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "natdex/FRLG_NatDex_v1.2_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "natdex/FRLG_NatDex_v1.2_Kaizo.rnqs", "name": "Kaizo"}, {"file": "natdex/FRLG_NatDex_v1.2_Standard.rnqs", "name": "Standard"}, {"file": "natdex/FRLG_NatDex_v1.2_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "natdex/FRLG_NatDex_v1.2_Survival_Revival.rnqs", "name": "Survival Revival"}, {"file": "natdex/FRLG_NatDex_v1.2_Survival.rnqs", "name": "Survival"}, {"file": "natdex/FRLG_NatDex_v1.2_Ultimate.rnqs", "name": "Ultimate"}], "RSE NatDex": [{"file": "natdex/RSE_NatDex_v1.2_Chaos_Kaizo.rnqs", "name": "Chaos Kaizo"}, {"file": "natdex/RSE_NatDex_v1.2_Evo_Kaizo.rnqs", "name": "Evo Kaizo"}, {"file": "natdex/RSE_NatDex_v1.2_Ironmon_Journey.rnqs", "name": "Ironmon Journey"}, {"file": "natdex/RSE_NatDex_v1.2_Kaizo_Doubles.rnqs", "name": "Kaizo Doubles"}, {"file": "natdex/RSE_NatDex_v1.2_Kaizo.rnqs", "name": "Kaizo"}, {"file": "natdex/RSE_NatDex_v1.2_Standard.rnqs", "name": "Standard"}, {"file": "natdex/RSE_NatDex_v1.2_Super_Kaizo.rnqs", "name": "Super Kaizo"}, {"file": "natdex/RSE_NatDex_v1.2_Survival_Revival.rnqs", "name": "Survival Revival"}, {"file": "natdex/RSE_NatDex_v1.2_Survival.rnqs", "name": "Survival"}, {"file": "natdex/RSE_NatDex_v1.2_Ultimate.rnqs", "name": "Ultimate"}]};
 const FAMILY = { fr10: 'FRLG', fr11: 'FRLG', lg10: 'FRLG', lg11: 'FRLG', em: 'RSE', red: 'RBY', blue: 'RBY', yellow: 'RBY', gold: 'GSC', silver: 'GSC', crystal: 'GSC', plat: 'DPPt', hg: 'HGSS', b2: 'B2W2', w2: 'B2W2' };
 const state = { rom: null, romName: '', ident: null, patch: null, ownPatch: null, result: null, resultName: '' };
 
@@ -809,17 +809,21 @@ $('saveBtn').addEventListener('click', () => {
 });
 // ---------- randomizer (Universal Pokemon Randomizer ZX via CheerpJ) ----------
 const CJ_URL = 'https://cjrtnc.leaningtech.com/3.0/cj3loader.js';
-let cjReady = null, randOut = null, randRuns = 0;
+let cjReady = null, randOut = null, randRuns = 0, randFam = null, randJar = null;
+// Nat. Dex presets (presets/natdex/…) run with the Nat. Dex build of the randomizer.
+const jarFor = (presetFile) => (/^natdex\//.test(presetFile) ? 'randomizer_natdex.jar' : 'PokeRandoZX.jar');
 function resetRandom() {
   $('step4').setAttribute('aria-disabled', 'true'); $('randBox').hidden = true; $('randResult').hidden = true;
   $('randStatus').textContent = ''; randOut = null;
   $('randHint').innerHTML = 'Finish step 3 first. To randomize without patching, pick <b>No patch</b> in step 2.';
 }
 function prepRandom(id, p) {
-  const fam = id && FAMILY[id.ids[0]];
-  const blocked = p && p.file && /^(natdex|maxdex)/.test(p.file);
+  const natdex = !!(p && p.file && /^natdex/.test(p.file));
+  const fam = id && FAMILY[id.ids[0]] && (FAMILY[id.ids[0]] + (natdex ? ' NatDex' : ''));
+  randFam = fam;
+  const blocked = p && p.file && /^maxdex/.test(p.file);
   if (!fam || !PRESETS[fam] || blocked) {
-    $('randHint').textContent = blocked ? 'Nat. Dex and MaxDex games need their own versions of the randomizer, which aren’t included here.'
+    $('randHint').textContent = blocked ? 'MaxDex needs its own version of the randomizer, which isn’t included yet.'
       : 'There are no randomizer presets for this game.';
     return;
   }
@@ -857,8 +861,11 @@ $('randBtn').addEventListener('click', async () => {
     const sres = await fetch('randomizer/presets/' + $('presetSel').value);
     if (!sres.ok) throw new Error('Couldn’t download the preset. Try again.');
     cheerpOSAddStringFile(setPath, new Uint8Array(await sres.arrayBuffer()));
-    const base = '/app' + new URL('randomizer/', location.href).pathname;
-    await cheerpjRunMain('KpCli', base + 'PokeRandoZX.jar:' + base + 'kp-cli.jar',
+    const base = '/app' + new URL('randomizer/', location.href).pathname, jar = jarFor($('presetSel').value);
+    // One randomizer per page visit: Java keeps the first one loaded.
+    if (randJar && randJar !== jar) throw new Error('Reload the page to switch between Nat. Dex and regular games.');
+    randJar = jar;
+    await cheerpjRunMain('KpCli', base + jar + ':' + base + 'kp-cli.jar',
       '--tmp=/files/kptmp', '--log=' + logPath, '--result=' + resPath, '-s', setPath, '-i', inPath, '-o', outPath, '-l');
     const res = await readCjFile(resPath), code = res ? (await res.text()).trim() : '';
     if (code !== '0') {
@@ -887,7 +894,7 @@ $('playBtn').addEventListener('click', async () => {
     const romBuf = await r.romBlob.arrayBuffer();
     // The game file is stored once under its own key; the details record stays small.
     await KPStore.set('setupRom', romBuf);
-    await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: FAMILY[id.ids[0]],
+    await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: randFam || FAMILY[id.ids[0]],
       code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, runs: 0 });
     for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress', 'spare', 'spareRom', 'spareLog']) await KPStore.del(k);
     location.href = 'play.html?new=1';

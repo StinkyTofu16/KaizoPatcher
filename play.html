@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=7458c5a70a">
+<link rel="manifest" href="manifest.webmanifest?v=2a1cb516d3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,9 +118,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=7458c5a70a"></script>
-<script src="kp-random.js?v=7458c5a70a"></script>
-<script src="kp-gen3.js?v=7458c5a70a"></script>
+<script src="kp-store.js?v=2a1cb516d3"></script>
+<script src="kp-random.js?v=2a1cb516d3"></script>
+<script src="kp-gen3.js?v=2a1cb516d3"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -251,7 +251,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=7458c5a70a')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=2a1cb516d3')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
