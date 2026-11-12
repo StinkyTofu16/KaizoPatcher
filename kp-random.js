@@ -16,7 +16,24 @@ const KPRandom = (() => {
   }
   async function readFile(path) { try { return await cjFileBlob(path); } catch (e) { return null; } }
   let usedJar = null;
+  // FireRed MaxDex has its own randomizer that runs in the page (kp-maxdex.js), loaded when first needed.
+  let maxdexReady = null;
+  function loadMaxDex() {
+    if (typeof KPMaxDex !== 'undefined') return Promise.resolve();
+    return maxdexReady || (maxdexReady = new Promise((res, rej) => {
+      const sc = document.createElement('script'); sc.src = new URL('kp-maxdex.js', location.href).href; sc.onload = res;
+      sc.onerror = () => { maxdexReady = null; rej(new Error('Couldn’t load the randomizer. Check your connection and try again.')); };
+      document.head.append(sc);
+    }));
+  }
   async function run(romBytes, ext, presetFile, onStatus) {
+    if (/^maxdex\//.test(presetFile)) {
+      onStatus && onStatus('Randomizing…');
+      await loadMaxDex();
+      await new Promise((res) => setTimeout(res, 30));
+      const out = KPMaxDex.randomize(romBytes, presetFile.slice(7));
+      return { rom: new Blob([out.rom]), log: new Blob([out.log], { type: 'text/plain' }) };
+    }
     onStatus && onStatus('Loading the randomizer…');
     await load();
     onStatus && onStatus('Randomizing…');

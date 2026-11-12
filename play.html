@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=52e4c1b5e9">
+<link rel="manifest" href="manifest.webmanifest?v=00d9c65e70">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,9 +118,10 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=52e4c1b5e9"></script>
-<script src="kp-random.js?v=52e4c1b5e9"></script>
-<script src="kp-gen3.js?v=52e4c1b5e9"></script>
+<script src="kp-store.js?v=00d9c65e70"></script>
+<script src="kp-random.js?v=00d9c65e70"></script>
+<script src="kp-maxdex.js?v=00d9c65e70"></script>
+<script src="kp-gen3.js?v=00d9c65e70"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -258,7 +259,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=52e4c1b5e9')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=00d9c65e70')).json(); } catch (e) { presets = {}; }
   if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
