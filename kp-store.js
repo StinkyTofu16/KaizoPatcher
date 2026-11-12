@@ -84,4 +84,4 @@ const KPStore = (() => {
   return { get, set, del, migrate };
 })();
 
-const KP_CORES = { GBA: { core: 'gba', ext: 'gba' }, GB: { core: 'gb', ext: 'gb' }, GBC: { core: 'gb', ext: 'gbc' } };
+const KP_CORES = { GBA: { core: 'gba', ext: 'gba' }, GB: { core: 'gb', ext: 'gb' }, GBC: { core: 'gb', ext: 'gbc' }, NDS: { core: 'nds', ext: 'nds' } };

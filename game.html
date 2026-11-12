@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9533bd7518">
+<link rel="manifest" href="manifest.webmanifest?v=df632474cd">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -103,6 +103,20 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .trk .tabhint { color: #7f8a99; font-size: 8.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .lrbtn { display: none; }
 
+/* DS games: two stacked screens (2:3). Upright, the picture sits above the controller; sideways, the side columns
+   are sized for the narrower picture. The four face buttons share the right-hand zone. */
+body.kp-ds #game .b_a, body.kp-ds #game .b_b, body.kp-ds #game .b_x, body.kp-ds #game .b_y { width: 36% !important; height: 36% !important; font-size: calc(var(--zone) * .15) !important; }
+@media not ((orientation: landscape) and (max-height: 520px)) {
+  body.kp-ds #game .ejs_canvas { height: calc(100% - 300px) !important; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  body.kp-ds .gamebox { --side: max(116px, calc(50% - 33.4dvh)); }
+  body.kp-ds #game .ejs_virtualGamepad_left { left: max(3px, calc((var(--side) - 126px) / 2)) !important; }
+  body.kp-ds #game .ejs_virtualGamepad_right { right: max(3px, calc((var(--side) - var(--zone)) / 2)) !important; }
+}
+#dsCoreBtn { display: none; }
+body.kp-ds #dsCoreBtn { display: flex; }
+
 /* Menu sheet */
 .scrim { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: min(420px, 100%); max-height: 100%; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 0 0;
@@ -198,6 +212,7 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
     </div>
     <div class="list">
       <button class="sbtn primary" id="resumeBtn">Resume</button>
+      <button class="sbtn" id="dsCoreBtn">DS engine <small id="dsCoreState">Fast</small></button>
       <button class="sbtn" id="trkToggle">Tracker <small id="trkState">On</small></button>
       <button class="sbtn" id="toolsBtn">Emulator options <small id="toolsState">Save states, settings</small></button>
       <button class="sbtn" id="starterBtn">Use this save for new runs <small id="starterState">Skip the intro</small></button>
@@ -211,12 +226,12 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 
 <script>
 </script>
-<script src="kp-store.js?v=9533bd7518"></script>
-<script src="kp-config.js?v=9533bd7518"></script>
-<script src="kp-gen3.js?v=9533bd7518"></script>
-<script src="kp-cloud.js?v=9533bd7518"></script>
-<script src="kp-tracker.js?v=9533bd7518"></script>
-<script src="kp-corecache.js?v=9533bd7518"></script>
+<script src="kp-store.js?v=df632474cd"></script>
+<script src="kp-config.js?v=df632474cd"></script>
+<script src="kp-gen3.js?v=df632474cd"></script>
+<script src="kp-cloud.js?v=df632474cd"></script>
+<script src="kp-tracker.js?v=df632474cd"></script>
+<script src="kp-corecache.js?v=df632474cd"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -241,11 +256,15 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const saveNow = () => { try { const e = emu(); e && e.gameManager.saveSaveFiles(); } catch (e) {} };
 
   // ---- Progress tracking: badges and party read from the in-game save ----
+  // DS games: DeSmuME 2015 by default (the lightest DS engine, smoothest on phones); melonDS can be picked in the Menu.
+  const isDS = setup.core === 'nds';
+  let dsCore = 'desmume2015';
+  try { if (localStorage.getItem('kp:dscore') === 'melonds') dsCore = 'melonds'; } catch (e) {}
   const gameCode = String.fromCharCode(...new Uint8Array(runRom, 0xAC, 4));
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=9533bd7518').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=df632474cd').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -281,7 +300,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     el.hidden = false;
   }
   async function track() {
-    const e = emu(); if (!e || !species) return null;
+    const e = emu(); if (!e || !species || setup.core === 'nds') return null; // DS: no Gen 3 progress to read
     try {
       e.gameManager.saveSaveFiles();
       const data = e.gameManager.getSaveFile(false);
@@ -528,6 +547,16 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   });
   applyTracker();
 
+  // ---- DS engine switch (reloads the game; the in-game save is kept) ----
+  if (isDS) {
+    $('dsCoreState').textContent = dsCore === 'melonds' ? 'Accurate (melonDS) \u00b7 tap for Fast' : 'Fast (DeSmuME) \u00b7 tap for Accurate';
+    $('dsCoreBtn').addEventListener('click', () => {
+      saveNow();
+      try { localStorage.setItem('kp:dscore', dsCore === 'melonds' ? 'desmume2015' : 'melonds'); } catch (e) {}
+      setTimeout(() => location.reload(), 600);
+    });
+  }
+
   // ---- Emulator toolbar on demand ----
   let tools = false;
   $('toolsBtn').addEventListener('click', () => {
@@ -610,7 +639,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 
   // ---- Emulator ----
   window.EJS_player = '#game';
-  window.EJS_core = setup.core;
+  window.EJS_core = isDS ? dsCore : setup.core;
+  if (isDS) document.body.classList.add('kp-ds');
   window.EJS_gameUrl = new Blob([runRom]);
   window.EJS_gameName = 'kp-run-' + run.id;
   window.EJS_pathtodata = EJS_VERSION_PATH;
@@ -625,14 +655,23 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_defaultOptions = { 'save-save-interval': '30' };
   window.EJS_Buttons = { restart: false, netplay: false, exitEmulation: false, cacheManager: false, cheat: false };
   // Controller: Select centered under the D-pad, Start centered under A/B, each with a clear gap. Speed lives in the Menu sheet.
-  const pad = [
+  const pad = isDS ? [
+    // DS face buttons in the usual diamond: X top, Y left, A right, B bottom.
+    { type: 'button', text: 'X', id: 'x', location: 'right', left: '32%', top: '0%', bold: true, input_value: 9 },
+    { type: 'button', text: 'Y', id: 'y', location: 'right', left: '0%', top: '32%', bold: true, input_value: 1 },
+    { type: 'button', text: 'A', id: 'a', location: 'right', left: '64%', top: '32%', bold: true, input_value: 8 },
+    { type: 'button', text: 'B', id: 'b', location: 'right', left: '32%', top: '64%', bold: true, input_value: 0 },
+    { type: 'dpad', id: 'dpad', location: 'left', left: '50%', top: '50%', joystickInput: false, inputValues: [4, 5, 6, 7] },
+    { type: 'button', text: 'Select', id: 'select', location: 'left', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 2 },
+    { type: 'button', text: 'Start', id: 'start', location: 'right', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 3 },
+  ] : [
     { type: 'button', text: 'B', id: 'b', location: 'right', left: '0%', top: '52%', bold: true, input_value: 0 },
     { type: 'button', text: 'A', id: 'a', location: 'right', left: '54%', top: '12%', bold: true, input_value: 8 },
     { type: 'dpad', id: 'dpad', location: 'left', left: '50%', top: '50%', joystickInput: false, inputValues: [4, 5, 6, 7] },
     { type: 'button', text: 'Select', id: 'select', location: 'left', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 2 },
     { type: 'button', text: 'Start', id: 'start', location: 'right', left: '27%', top: 'calc(100% + 12px)', fontSize: 15, block: true, input_value: 3 },
   ];
-  if (setup.core === 'gba') pad.push(
+  if (setup.core === 'gba' || isDS) pad.push(
     { type: 'button', text: 'L', id: 'l', location: 'left', left: '2%', top: 'calc(-34px - 22%)', bold: true, block: true, input_value: 10 },
     { type: 'button', text: 'R', id: 'r', location: 'right', right: '2%', top: 'calc(-34px - 22%)', bold: true, block: true, input_value: 11 });
   window.EJS_VirtualGamepadSettings = pad;

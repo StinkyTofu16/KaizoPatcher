@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=9533bd7518">
+<link rel="manifest" href="manifest.webmanifest?v=df632474cd">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -504,7 +504,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=9533bd7518"></script>
+<script src="kp-store.js?v=df632474cd"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -828,7 +828,9 @@ function prepRandom(id, p) {
   $('randHint').textContent = fam + ' presets for ' + id.label + '.';
   $('step4').setAttribute('aria-disabled', 'false'); $('randBox').hidden = false; $('randResult').hidden = true; $('randStatus').textContent = '';
   const playable = !!KP_CORES[id.sys]; $('playBtn').hidden = !playable;
-  $('playHint').textContent = playable ? 'Play in browser keeps this game and preset on your phone. Every New run re-randomizes it and starts a fresh save.' : 'DS games can\u2019t be played in the browser player yet. Randomize to a file and play it in Delta.';
+  $('playHint').textContent = !playable ? 'This game can\u2019t be played in the browser player yet. Randomize to a file instead.'
+    : id.sys === 'NDS' ? 'Play in browser keeps this game and preset on your phone. DS games are big, so each New run takes a minute or two to re-randomize. The tracker isn\u2019t available for DS games yet.'
+    : 'Play in browser keeps this game and preset on your phone. Every New run re-randomizes it and starts a fresh save.';;
   KPStore.get('setup').then((s) => { if (s && playable) $('playHint').textContent += ' This replaces ' + s.label + ', your current browser game.'; }).catch(() => {});
 }
 function loadCheerpJ() {
@@ -886,7 +888,7 @@ $('playBtn').addEventListener('click', async () => {
     // The game file is stored once under its own key; the details record stays small.
     await KPStore.set('setupRom', romBuf);
     await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: FAMILY[id.ids[0]],
-      code: String.fromCharCode(...new Uint8Array(romBuf, 0xAC, 4)), presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, runs: 0 });
+      code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: sel.value, presetName: sel.selectedOptions[0].textContent, runs: 0 });
     for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress', 'spare', 'spareRom', 'spareLog']) await KPStore.del(k);
     location.href = 'play.html?new=1';
   } catch (e) {

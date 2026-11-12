@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9533bd7518">
+<link rel="manifest" href="manifest.webmanifest?v=df632474cd">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,9 +118,9 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=9533bd7518"></script>
-<script src="kp-random.js?v=9533bd7518"></script>
-<script src="kp-gen3.js?v=9533bd7518"></script>
+<script src="kp-store.js?v=df632474cd"></script>
+<script src="kp-random.js?v=df632474cd"></script>
+<script src="kp-gen3.js?v=df632474cd"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -176,6 +176,8 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
       st.textContent = 'Saving\u2026'; stage = 'saving';
       await saveRun(su, await out.rom.arrayBuffer(), out.log ? await out.log.arrayBuffer() : null);
 
+      // DS games are ~8x bigger than GBA ones: skip the spare run to keep memory and time down.
+      if (su.core === 'nds') { location.replace('game.html'); return; }
       // Make the spare while the randomizer is warm. Play now skips it.
       let skipped = false;
       const go = () => { skipped = true; location.replace('game.html'); };
@@ -249,7 +251,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=9533bd7518')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=df632474cd')).json(); } catch (e) { presets = {}; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {
     const o = document.createElement('option'); o.value = p.file; o.textContent = p.name;
