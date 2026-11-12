@@ -222,7 +222,12 @@ const KPMaxDex = (() => {
     seed = seed == null ? (crypto.getRandomValues(new Uint32Array(1))[0]) : seed;
     const rnd = rng(seed);
     const log = [];
-    const N = (s) => D.name(s) || ('#' + s);
+    // display names: MaxDex's own are cut to 10 letters ("RoarinMoon") and mark forms with a letter ("WeezingG")
+    const MN = typeof KPMaxNames !== 'undefined' ? KPMaxNames : (typeof require === 'function' ? require('./kp-maxnames.js') : null);
+    const rawNames = []; for (let s = 0; s < D.count; s++) rawNames.push(D.name(s));
+    const shown = MN ? MN.species(rawNames) : rawNames;
+    const N = (s) => shown[s] || D.name(s) || ('#' + s);
+    const abilTitle = (a) => (MN ? MN.title(D.abilName(a)) : D.abilName(a));
 
     // ---- species pools ----
     const valid = new Set();
@@ -353,14 +358,14 @@ const KPMaxDex = (() => {
       const hit = find(R, Uint8Array.of(...enc(' ' + orig + ' is your choice')), D.scriptLo, D.scriptHi); if (hit < 0) continue;
       let at = hit; while (at > 0 && R[at - 1] !== 0xFF) at--;
       let end = hit; while (R[end] !== 0xFF) end++;
-      const s = newStarters[k], tn = TYPE_NAMES[D.types(s)[0]] || 'NORMAL', nm = N(s).toUpperCase();
+      const s = newStarters[k], tn = TYPE_NAMES[D.types(s)[0]] || 'NORMAL', nm = (N(s).length <= 12 ? N(s) : D.name(s)).toUpperCase();
       const msg = [...enc('I see! ' + nm + ' is your choice.'), 0xFB, ...enc('So, '), 0xFD, 0x01, ...enc(', you want'), 0xFE,
         ...enc('the ' + tn + ' POK\u00e9MON ' + nm + '?')];
       if (msg.length <= end - at) { R.set(msg, at); R.fill(0xFF, at + msg.length, end); }
     }
     const describe = (s) => {
       const o = D.stats + s * D.statSize, st = [...R.slice(o, o + 6)];
-      const ab = [u16(o + 22), u16(o + 24)].filter(Boolean).map(D.abilName).join(' / ');
+      const ab = [u16(o + 22), u16(o + 24)].filter(Boolean).map(abilTitle).join(' / ');
       return N(s) + ': HP ' + st[0] + ', Atk ' + st[1] + ', Def ' + st[2] + ', Spe ' + st[3] + ', SpA ' + st[4] + ', SpD ' + st[5] + ' | ' + ab;
     };
     const learnTxt = (s) => D.learnEntries(s).map((e) => D.moveName(u16(e)) + ' ' + (R[e + 2] || 'Evo')).join(', ');

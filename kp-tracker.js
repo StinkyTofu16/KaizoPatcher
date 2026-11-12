@@ -194,11 +194,14 @@ const KPTracker = (() => {
     const F = MX ? { maxSp: T.count, statSize: T.statSize, maxMove: 2000, moveNameLen: T.moveNameLen, mPow: 2, mType: 3, mAcc: 5, mPP: 6, abilLen: T.abilLen }
       : { maxSp: 412, statSize: 28, maxMove: 355, moveNameLen: 13, mPow: 1, mType: 2, mAcc: 3, mPP: 4, abilLen: 13 };
     const cache = {};
+    // MaxDex display names (full names instead of the game's 10-letter ones, "Galarian Weezing" for "WeezingG")
+    let shownNames = null;
+    if (MX && typeof KPMaxNames !== 'undefined') { const raw = []; for (let i = 0; i < T.count; i++) raw.push(nameAt(rom, T.species, 11, i, 11)); shownNames = KPMaxNames.species(raw); }
     const species = (i) => {
       if (!(i > 0 && i < F.maxSp)) return null;
       if (cache[i]) return cache[i];
       const e = T.stats + F.statSize * i;
-      const s = { name: MX ? nameAt(rom, T.species, 11, i, 11) : nice(nameAt(rom, T.species, 11, i, 11)), base: [rom[e], rom[e + 1], rom[e + 2], rom[e + 3], rom[e + 4], rom[e + 5]],
+      const s = { name: MX ? (shownNames ? shownNames[i] : nameAt(rom, T.species, 11, i, 11)) : nice(nameAt(rom, T.species, 11, i, 11)), base: [rom[e], rom[e + 1], rom[e + 2], rom[e + 3], rom[e + 4], rom[e + 5]],
         types: [...new Set([TYPES[rom[e + 6]], TYPES[rom[e + 7]]])], abilities: MX ? [rom[e + 22], rom[e + 24]] : [rom[e + 22], rom[e + 23]] };
       s.bst = s.base.reduce((a, b) => a + b, 0);
       if (!s.name || !s.bst) return null;
