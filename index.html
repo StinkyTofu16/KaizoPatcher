@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=987130c3c9">
+<link rel="manifest" href="manifest.webmanifest?v=52e4c1b5e9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -504,7 +504,7 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=987130c3c9"></script>
+<script src="kp-store.js?v=52e4c1b5e9"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -708,7 +708,15 @@ function decodeB64(src) {
 async function fetchPatch(p) {
   const decoded = []; let got = 0, total = 0;
   for (const url of p.parts) {
-    const res = await fetch(url);
+    let res = null;
+    // GitHub Pages briefly answers 5xx while the site redeploys; wait and try again before giving up.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try { res = await fetch(url, attempt ? { cache: 'reload' } : undefined); } catch (e) { res = null; }
+      if (res && (res.ok || res.status < 500)) break;
+      setStatus('Downloading patch\u2026 retrying');
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    }
+    if (!res) throw new Error('Couldn\u2019t download the patch. Check your connection and try again.');
     if (!res.ok) throw new Error('Couldn\u2019t download the patch (' + res.status + '). Check your connection and try again.');
     const chunks = []; let len = 0;
     if (res.body && res.body.getReader) {
