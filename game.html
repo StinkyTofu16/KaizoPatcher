@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=9b6424ebd9">
+<link rel="manifest" href="manifest.webmanifest?v=c504e6bfe4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,13 +240,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=9b6424ebd9"></script>
-<script src="kp-config.js?v=9b6424ebd9"></script>
-<script src="kp-gen3.js?v=9b6424ebd9"></script>
-<script src="kp-cloud.js?v=9b6424ebd9"></script>
-<script src="kp-maxnames.js?v=9b6424ebd9"></script>
-<script src="kp-tracker.js?v=9b6424ebd9"></script>
-<script src="kp-corecache.js?v=9b6424ebd9"></script>
+<script src="kp-store.js?v=c504e6bfe4"></script>
+<script src="kp-config.js?v=c504e6bfe4"></script>
+<script src="kp-gen3.js?v=c504e6bfe4"></script>
+<script src="kp-cloud.js?v=c504e6bfe4"></script>
+<script src="kp-maxnames.js?v=c504e6bfe4"></script>
+<script src="kp-tracker.js?v=c504e6bfe4"></script>
+<script src="kp-corecache.js?v=c504e6bfe4"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -282,7 +282,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // FireRed MaxDex: memory and species differ from FireRed's, so it's read as "BPRX", with names from the game file.
   const maxdex = /MaxDex/.test(setup.fam || '');
   const readCode = maxdex ? 'BPRX' : gameCode;
-  fetch('gen3-species.json?v=9b6424ebd9').then((r) => r.json()).then((j) => {
+  fetch('gen3-species.json?v=c504e6bfe4').then((r) => r.json()).then((j) => {
     if (maxdex) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1; const pat = [0xBC, 0xE9, 0xE0, 0xD6, 0xD5, 0xE7, 0xD5, 0xE9, 0xE6, 0xFF]; // "Bulbasaur"

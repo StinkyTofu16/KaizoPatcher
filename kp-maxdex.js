@@ -269,16 +269,38 @@ const KPMaxDex = (() => {
         }
       }
     }
-    // ---- abilities: random, never Wonder Guard, trapping abilities or ones tied to one Pokémon's form ----
-    const BAN_ABIL = new Set(['wonderguard', 'shadowtag', 'arenatrap', 'magnetpull', 'multitype', 'stancechange', 'schooling', 'disguise',
-      'battlebond', 'powerconstruct', 'shieldsdown', 'rkssystem', 'gulpmissile', 'iceface', 'hungerswitch', 'zerotohero', 'commander',
-      'zenmode', 'forecast', 'flowergift', 'terashift', 'teraformzero', 'asone', 'comatose', 'imposter', 'illusion', 'truant']);
+    // ---- abilities, the way Universal Pokémon Randomizer does it with the site's presets ----
+    // Banned: Wonder Guard, trapping abilities (Shadow Tag, Magnet Pull, Arena Trap), abilities that only work for one
+    // Pokémon's form, and duplicate abilities (Vital Spirit = Insomnia, etc.), which instead share their original's chance.
+    // A second ability is added half the time, and a Pokémon that has Wonder Guard keeps its abilities.
+    const BAN_ABIL = new Set(['wonderguard', 'shadowtag', 'magnetpull', 'arenatrap', 'forecast', 'multitype', 'flowergift', 'zenmode',
+      'stancechange', 'shieldsdown', 'schooling', 'disguise', 'battlebond', 'powerconstruct', 'rkssystem', 'cacophony',
+      'gulpmissile', 'iceface', 'hungerswitch', 'zerotohero', 'commander', 'terashift', 'teraformzero',
+      'vitalspirit', 'whitesmoke', 'purepower', 'shellarmor', 'airlock', 'solidrock', 'ironbarbs', 'turboblaze', 'teravolt',
+      'emergencyexit', 'dazzling', 'tanglinghair', 'powerofalchemy', 'fullmetalbody', 'shadowshield', 'prismarmor', 'libero', 'stalwart']);
+    const VARIANTS = { insomnia: ['vitalspirit'], clearbody: ['whitesmoke', 'fullmetalbody'], hugepower: ['purepower'], battlearmor: ['shellarmor'],
+      cloudnine: ['airlock'], filter: ['solidrock', 'prismarmor'], roughskin: ['ironbarbs'], moldbreaker: ['turboblaze', 'teravolt'],
+      wimpout: ['emergencyexit'], queenlymajesty: ['dazzling'], gooey: ['tanglinghair'], receiver: ['powerofalchemy'], multiscale: ['shadowshield'],
+      protean: ['libero'], propellertail: ['stalwart'] };
     // (species store abilities in one byte, so only the first 255 can be given)
+    const abilId = new Map(); for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!abilId.has(norm(D.abilName(a)))) abilId.set(norm(D.abilName(a)), a);
     const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a))) abilPool.push(a);
+    const pickAbility = (...not) => {
+      for (;;) {
+        let a = rnd.pick(abilPool);
+        if (not.includes(a)) continue;
+        const v = VARIANTS[norm(D.abilName(a))];
+        if (v) { const opts2 = [a, ...v.map((x) => abilId.get(x)).filter(Boolean)]; a = rnd.pick(opts2); }
+        return a;
+      }
+    };
+    const wonderGuard = abilId.get('wonderguard');
     if (opts.abilities && abilPool.length > 20) {
       for (const s of allSpecies) {
-        const o = D.stats + s * D.statSize, a1 = rnd.pick(abilPool);
-        let a2 = 0; if (u16(o + 24)) { do { a2 = rnd.pick(abilPool); } while (a2 === a1); }
+        const o = D.stats + s * D.statSize;
+        if (wonderGuard && (u16(o + 22) === wonderGuard || u16(o + 24) === wonderGuard)) continue;
+        const a1 = pickAbility();
+        const a2 = rnd.next() < 0.5 ? pickAbility(a1) : 0;
         w16(o + 22, a1); w16(o + 24, a2);
       }
     }
