@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=df632474cd">
+<link rel="manifest" href="manifest.webmanifest?v=8ce9166a65">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -110,9 +110,15 @@ body.kp-ds #game .b_a, body.kp-ds #game .b_b, body.kp-ds #game .b_x, body.kp-ds 
   body.kp-ds #game .ejs_canvas { height: calc(100% - 300px) !important; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
-  body.kp-ds .gamebox { --side: max(116px, calc(50% - 33.4dvh)); }
-  body.kp-ds #game .ejs_virtualGamepad_left { left: max(3px, calc((var(--side) - 126px) / 2)) !important; }
-  body.kp-ds #game .ejs_virtualGamepad_right { right: max(3px, calc((var(--side) - var(--zone)) / 2)) !important; }
+  /* DS sideways, like a DS skin: the two screens side by side across the top, D-pad and face buttons in the bottom
+     corners, and Menu / L / R / New run in a row at the bottom middle. */
+  body.kp-ds #game .ejs_canvas { left: 50% !important; right: auto !important; top: 0 !important; bottom: auto !important; transform: translateX(-50%);
+    width: min(100%, calc((100dvh - 180px) * 8 / 3)) !important; height: auto !important; aspect-ratio: 8 / 3; }
+  body.kp-ds #game .ejs_virtualGamepad_left { left: 6px !important; }
+  body.kp-ds #game .ejs_virtualGamepad_right { right: 6px !important; }
+  body.kp-ds .bar { top: auto !important; bottom: 8px; left: 50% !important; right: auto !important; transform: translateX(-50%); padding: 0 !important; justify-content: center; width: max-content; }
+  body.kp-ds #rBtn { margin-left: 0; }
+  body.kp-ds .info { display: none; }
 }
 #dsCoreBtn { display: none; }
 body.kp-ds #dsCoreBtn { display: flex; }
@@ -226,12 +232,12 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=df632474cd"></script>
-<script src="kp-config.js?v=df632474cd"></script>
-<script src="kp-gen3.js?v=df632474cd"></script>
-<script src="kp-cloud.js?v=df632474cd"></script>
-<script src="kp-tracker.js?v=df632474cd"></script>
-<script src="kp-corecache.js?v=df632474cd"></script>
+<script src="kp-store.js?v=8ce9166a65"></script>
+<script src="kp-config.js?v=8ce9166a65"></script>
+<script src="kp-gen3.js?v=8ce9166a65"></script>
+<script src="kp-cloud.js?v=8ce9166a65"></script>
+<script src="kp-tracker.js?v=8ce9166a65"></script>
+<script src="kp-corecache.js?v=8ce9166a65"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -264,7 +270,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=df632474cd').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=8ce9166a65').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -368,12 +374,16 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // The chosen speed is the source of truth; it is sent to the emulator again whenever it could have been lost
   // (tapped before the game finished starting, the starter-save restart, resuming after the Menu or app switch).
   let speed = 'normal';
+  let lastFrameskip = '0';
   function applySpeed() {
     try {
       const e = emu();
       if (!e || !e.gameManager) return false;
       e.gameManager.toggleFastForward(speed === 'fast' ? 1 : 0);
       e.gameManager.toggleSlowMotion(speed === 'slow' ? 1 : 0);
+      // DS games already use the phone's full power at normal speed; skipping drawn frames frees it up for Fast.
+      const fs = speed === 'fast' ? '3' : '0';
+      if (setup.core === 'nds' && fs !== lastFrameskip) { e.gameManager.setVariable('desmume_frameskip', fs); lastFrameskip = fs; }
       return true;
     } catch (err) { console.warn(err); return false; }
   }
@@ -653,6 +663,11 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_color = '#7d9bff';
   window.EJS_backgroundColor = '#000000';
   window.EJS_defaultOptions = { 'save-save-interval': '30' };
+  // DS: the touch screen follows the finger (absolute "touch" pointer), screens stacked upright and side by side sideways.
+  const landNow = () => matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
+  const dsLayoutOpts = (land) => ({ desmume_screens_layout: land ? 'left/right' : 'top/bottom', melonds_screen_layout: land ? 'Left/Right' : 'Top/Bottom' });
+  if (isDS) Object.assign(window.EJS_defaultOptions, { desmume_pointer_mouse: 'enabled', desmume_pointer_type: 'touch', desmume_frameskip: '0',
+    melonds_touch_mode: 'Touch' }, dsLayoutOpts(landNow()));
   window.EJS_Buttons = { restart: false, netplay: false, exitEmulation: false, cacheManager: false, cheat: false };
   // Controller: Select centered under the D-pad, Start centered under A/B, each with a clear gap. Speed lives in the Menu sheet.
   const pad = isDS ? [
@@ -691,10 +706,32 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     try { if (e && typeof e.toggleVirtualGamepad === 'function') e.toggleVirtualGamepad(true); } catch (err) {}
     const p = document.querySelector('#game .ejs_virtualGamepad_parent'); if (p && getComputedStyle(p).display === 'none') p.style.display = 'block';
   }
+  // DS screen layout follows the phone's orientation.
+  let dsLand = null;
+  function applyDsLayout(force) {
+    if (!isDS) return;
+    const land = landNow(); if (!force && land === dsLand) return; dsLand = land;
+    try { const e = emu(); if (e) for (const [k, v] of Object.entries(dsLayoutOpts(land))) e.gameManager.setVariable(k, v); } catch (err) { console.warn(err); }
+    [50, 400].forEach((ms) => setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
+  }
+  if (isDS) addEventListener('resize', () => applyDsLayout(false));
+  // DS touch screen: the emulator reads the touch screen from mouse input, and iPhone only turns a tap into a brief
+  // click, so finger touches on the game picture are passed on as a held mouse button that follows the finger.
+  function setupDsTouch() {
+    const cv = document.querySelector('#game canvas.ejs_canvas') || document.querySelector('#game canvas');
+    if (!cv || cv.__kpTouch) return; cv.__kpTouch = true;
+    const send = (type, t, down) => cv.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY, screenX: t.screenX, screenY: t.screenY, button: 0, buttons: down ? 1 : 0 }));
+    let id = null;
+    cv.addEventListener('touchstart', (ev) => { const t = ev.changedTouches[0]; if (id !== null || !t) return; id = t.identifier; ev.preventDefault(); send('mousemove', t, false); send('mousedown', t, true); }, { passive: false });
+    cv.addEventListener('touchmove', (ev) => { const t = [...ev.changedTouches].find((x) => x.identifier === id); if (!t) return; ev.preventDefault(); send('mousemove', t, true); }, { passive: false });
+    const end = (ev) => { const t = [...ev.changedTouches].find((x) => x.identifier === id); if (!t) return; ev.preventDefault(); send('mouseup', t, false); id = null; };
+    cv.addEventListener('touchend', end, { passive: false }); cv.addEventListener('touchcancel', end, { passive: false });
+  }
   window.EJS_ready = () => { $('msg').hidden = true; };
   window.EJS_onGameStart = () => {
     $('msg').hidden = true;
     [300, 1500, 4000].forEach((ms) => setTimeout(ensurePad, ms));
+    if (isDS) { setupDsTouch(); applyDsLayout(true); }
     // Only a run's very first launch gets the starter save; later launches (Continue) keep the run's own progress.
     if (!run.launched) { seedStarter(); run.launched = true; saveRunMeta(); }
     reapplySpeed();
