@@ -11,6 +11,8 @@ import java.util.List;
  *   --log=FILE     send stdout/stderr to FILE
  *   --result=FILE  write the exit code to FILE when done
  *   --clean=DIR    first delete kp-* files and kptmp contents left in DIR by earlier runs
+ *   --offsets=NAME load the Gen 3 ROM table file NAME (from the jar's config folder) before randomizing, used for
+ *                  ROM hacks such as FireRed MaxDex with the UPR-Android build (Gen3RomHandler.loadROMInfo)
  */
 public class KpCli {
     private static void deleteTree(File f) {
@@ -24,7 +26,9 @@ public class KpCli {
         List<String> rest = new ArrayList<>();
         PrintStream origOut = System.out, origErr = System.err;
         PrintStream log = null;
+        String offsets = null;
         for (String a : args) {
+            if (a.startsWith("--offsets=")) { offsets = a.substring(10); continue; }
             if (a.startsWith("--clean=")) {
                 // Delete files left by earlier runs (outputs, logs, temp) so browser storage doesn't grow every run.
                 File dir = new File(a.substring(8));
@@ -51,6 +55,11 @@ public class KpCli {
         }
         int code;
         try {
+            if (offsets != null) {
+                // Called by reflection so this wrapper still works with randomizer builds that don't have it.
+                Class.forName("com.dabomstew.pkrandom.romhandlers.Gen3RomHandler")
+                    .getMethod("loadROMInfo", String.class).invoke(null, offsets);
+            }
             code = com.dabomstew.pkrandom.cli.CliRandomizer.invoke(rest.toArray(new String[0]));
         } catch (Throwable t) {
             t.printStackTrace();
