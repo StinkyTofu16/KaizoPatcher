@@ -288,14 +288,29 @@ const KPMaxDex = (() => {
       protean: ['libero'], propellertail: ['stalwart'] };
     // (species store abilities in one byte, so only the first 255 can be given)
     const abilId = new Map(); for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!abilId.has(norm(D.abilName(a)))) abilId.set(norm(D.abilName(a)), a);
-    // Which abilities work: MaxDex gives real descriptions only to the abilities it implements (1-195 in v1.1); the rest
-    // just repeat their name ("Cursed Body.") and the game never gives them to the Pokémon that normally have them.
-    // An ability MaxDex itself gives to a Pokémon (Zacian's Intrepid Sword, Zamazenta's Dauntless Shield) counts too,
-    // and gets a proper description.
-    const nativeAbil = new Set(); for (const sp of allSpecies) { const o = D.stats + sp * D.statSize; nativeAbil.add(R[o + 22]); nativeAbil.add(R[o + 24]); }
+    // Which abilities work. MaxDex v1.1 gives real descriptions to abilities 1-195; later ones only repeat their name.
+    // Reading the battle code (the ability handler's jump table and every comparison against a battler's ability)
+    // found working code for the newer abilities below, so they're in the pool and get a description. Newer
+    // abilities whose code couldn't be found are left out. (Species store abilities in one byte, so only the first
+    // 255 can be given at all.)
+    const DESC = {
+      gluttony: 'Eats pinch Berries early.', unburden: 'Ups Speed after using its item.', pickpocket: 'Steals an item on contact.',
+      cursedbody: 'May disable a move that hits.', healer: 'May heal an ally\'s status.', friendguard: 'Lowers damage to allies.',
+      regenerator: 'Restores HP when switched out.', illusion: 'Disguises as the last ally.', mummy: 'Contact spreads Mummy.',
+      turboblaze: 'Moves ignore abilities.', teravolt: 'Moves ignore abilities.', cheekpouch: 'Berries also restore HP.',
+      protean: 'Becomes the type of its move.', magician: 'Steals the target\'s item.', parentalbond: 'Attacks twice in a turn.',
+      primordialsea: 'Summons heavy rain.', desolateland: 'Summons extreme sunlight.', merciless: 'Always crits poisoned foes.',
+      waterbubble: 'Ups Water moves, halves Fire.', steelworker: 'Powers up Steel moves.', liquidvoice: 'Sound moves become Water.',
+      triage: 'Healing moves go first.', surgesurfer: 'Faster on Electric Terrain.', corrosion: 'Can poison any type.',
+      queenlymajesty: 'Blocks priority moves.', innardsout: 'Hurts the foe when it faints.', dancer: 'Copies dance moves.',
+      dazzling: 'Blocks priority moves.', electricsurge: 'Sets Electric Terrain.', psychicsurge: 'Sets Psychic Terrain.',
+      grassysurge: 'Sets Grassy Terrain.', shadowshield: 'Halves damage at full HP.', neuroforce: 'Ups super effective hits.',
+      intrepidsword: 'Raises Attack on entry.', dauntlessshield: 'Raises Defense on entry.', libero: 'Becomes the type of its move.',
+      cottondown: 'Lowers foes\' Speed when hit.', sandspit: 'Whips up a sandstorm when hit.', icescales: 'Halves special damage.',
+      ripen: 'Doubles Berry effects.', powerspot: 'Powers up allies\' moves.',
+    };
     const placeholderDesc = (a) => norm(D.abilDescText(a)) === norm(D.abilName(a));
-    const DESC = { intrepidsword: 'Raises Attack on entry.', dauntlessshield: 'Raises Defense on entry.' };
-    const works = (a) => D.abilDesc === undefined || !placeholderDesc(a) || nativeAbil.has(a);
+    const works = (a) => D.abilDesc === undefined || !placeholderDesc(a) || !!DESC[norm(D.abilName(a))];
     for (let a = 1; a < Math.min(D.abilCount, 256); a++) {
       const d = DESC[norm(D.abilName(a))];
       if (d && placeholderDesc(a) && D.abilDesc !== undefined) { const t = enc(d); R.set(t, free); R[free + t.length] = 0xFF; w32(D.abilDesc + a * 4, free + 0x08000000); free += t.length + 1; }
