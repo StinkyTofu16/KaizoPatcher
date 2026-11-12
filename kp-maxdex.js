@@ -4,11 +4,11 @@
 // KPMaxDex.randomize(romBytes, presetName) -> { rom: Uint8Array, log: string }
 const KPMaxDex = (() => {
   const PRESETS = {
-    // Same idea as the regular FireRed presets, limited to what this randomizer changes: Pokémon and items.
-    // MaxDex's own stats, abilities and moves are kept.
-    'Kaizo': { levels: 1.5, bossExtra: 3, evolvedAt: 30 },
-    'Standard': { levels: 1.5, bossExtra: 0, evolvedAt: 30 },
-    'Super Kaizo': { levels: 1.5, bossExtra: 5, evolvedAt: 30, trainerItems: true },
+    // Same idea as the regular FireRed presets: random base stats (same total), abilities and level-up moves
+    // (four to start with), plus random Pokémon and items. Casual only randomizes Pokémon and items.
+    'Kaizo': { levels: 1.5, bossExtra: 3, evolvedAt: 30, stats: true, abilities: true, moves: true },
+    'Standard': { levels: 1.5, bossExtra: 0, evolvedAt: 30, stats: true, abilities: true, moves: true },
+    'Super Kaizo': { levels: 1.5, bossExtra: 5, evolvedAt: 30, trainerItems: true, stats: true, abilities: true, moves: true },
     'Casual': { levels: 1, bossExtra: 0, evolvedAt: 0 },
   };
   const LEGENDS = ('Articuno Zapdos Moltres Mewtwo Mew Raikou Entei Suicune Lugia Ho-Oh Celebi Regirock Regice Registeel '
@@ -75,6 +75,38 @@ const KPMaxDex = (() => {
     }
     if (!D.evos) fail('the evolutions');
     D.evoList = (s) => { const out = []; for (let k = 0; k < D.evoSize / 8; k++) { const o = D.evos + s * D.evoSize + k * 8; const t = u16(o + 4); if (u16(o) && t) out.push({ method: u16(o), param: u16(o + 2), target: t }); } return out; };
+
+    // level-up moves: a pointer per species to 3-byte {move, level} entries ending at level 0xFF.
+    // Found from Bulbasaur's list (Tackle 1, Growl 1, Vine Whip 3); entry 0 points there too.
+    i = find(R, Uint8Array.of(33, 0, 1, 45, 0, 1, 22, 0, 3));
+    if (i >= 0) {
+      const refs = [];
+      for (let o = 0; o + 4 <= R.length; o += 4) if (u32(o) === i + 0x08000000) refs.push(o);
+      const last = refs.filter((q) => isPtr(u32(q + 4)) && isPtr(u32(q + 8))).pop();
+      if (last !== undefined) D.learn = last - 4;
+    }
+    if (D.learn === undefined) fail('the level-up moves');
+    D.learnEntries = (s) => { const p = u32(D.learn + s * 4); if (!isPtr(p)) return []; const o = p - 0x08000000, out = []; for (let k = 0; k < 120 && R[o + k * 3 + 2] !== 0xFF; k++) out.push(o + k * 3); return out; };
+    // ability names (entry 0 is "-------")
+    i = find(R, Uint8Array.of(...enc('Stench'), 0xFF)); const dz = find(R, Uint8Array.of(...enc('Drizzle'), 0xFF), i);
+    if (i < 0 || dz < 0) fail('the abilities');
+    D.abilLen = dz - i; D.abilNames = i - D.abilLen;
+    D.abilName = (a) => { let t = '', o = D.abilNames + a * D.abilLen; for (let k = 0; k < D.abilLen && R[o + k] !== 0xFF; k++) t += DEC[R[o + k]] || '?'; return t; };
+    D.abilCount = 1; while (D.abilCount < 1000 && /^[A-Za-z0-9 .'\-]+$/.test(D.abilName(D.abilCount))) D.abilCount++;
+
+    // move names (for the spoiler log)
+    let mn = -1, mL = 0;
+    for (let k = find(R, Uint8Array.of(...enc('Pound'), 0xFF)); k !== -1 && mn < 0; k = find(R, Uint8Array.of(...enc('Pound'), 0xFF), k + 1)) {
+      for (const L of [13, 17, 21]) if (find(R, Uint8Array.of(...enc('Karate Chop'), 0xFF), k + L, k + L + 12) === k + L) { mn = k; mL = L; }
+    }
+    // battle data: 12-byte entries {effect u16, power, type, split, accuracy, pp, ...}; Pound, Karate Chop, Double Slap
+    for (let k = find(R, Uint8Array.of(0, 0, 40, 0, 0, 100, 35)); k !== -1 && D.moveData === undefined; k = find(R, Uint8Array.of(0, 0, 40, 0, 0, 100, 35), k + 1)) {
+      if (R[k + 14] === 50 && R[k + 17] === 100 && R[k + 18] === 25 && R[k + 26] === 15 && R[k + 29] === 85 && R[k + 30] === 10) D.moveData = k - 12;
+    }
+    D.movePP = (m) => (D.moveData === undefined ? 0 : R[D.moveData + m * 12 + 6]);
+    D.moveName = (m) => { if (mn < 0) return '#' + m; let t = '', o = mn + (m - 1) * mL; for (let k = 0; k < mL && R[o + k] !== 0xFF; k++) t += DEC[R[o + k]] || '?'; return t.trim() || '#' + m; };
+
+    D.moveCount = 1; if (mn >= 0) while (D.moveCount < 3000 && /^[A-Za-z0-9 .'\-,]+$/.test(D.moveName(D.moveCount)) && !/^#/.test(D.moveName(D.moveCount))) D.moveCount++;
 
     // trainers: 40-byte entries; Brock is trainer 414 in FireRed
     for (let k = find(R, Uint8Array.of(...enc('BROCK'), 0xFF)); k !== -1; k = find(R, Uint8Array.of(...enc('BROCK'), 0xFF), k + 1)) {
@@ -217,6 +249,57 @@ const KPMaxDex = (() => {
     const fullyEvolved = all.filter((s) => evoTargets(s).length === 0);
     const evolveTimes = (s, k) => { for (let i = 0; i < k; i++) { const t = evoTargets(s); if (!t.length) break; s = t[0]; } return s; };
 
+    // ---- base stats: same total, split at random (as the regular randomizer does) ----
+    const allSpecies = []; for (let s = 1; s < D.count; s++) if (D.bst(s) > 0 && D.name(s) && !/^\?+$/.test(D.name(s))) allSpecies.push(s);
+    if (opts.stats) {
+      for (const s of allSpecies) {
+        const o = D.stats + s * D.statSize, shed = D.name(s) === 'Shedinja';
+        const total = D.bst(s);
+        for (let tries = 0; tries < 50; tries++) {
+          const wt = [0, 0, 0, 0, 0, 0].map(() => rnd.next()), tw = wt.reduce((a, b) => a + b, 0) - (shed ? wt[0] : 0);
+          const pool = total - (shed ? 51 : 70);
+          const v = wt.map((x, k) => (shed && k === 0 ? 1 : Math.max(1, Math.round(x / tw * pool)) + (k === 0 ? 20 : 10)));
+          if (v.every((x) => x <= 255)) { for (let k = 0; k < 6; k++) R[o + k] = v[k]; break; }
+        }
+      }
+    }
+    // ---- abilities: random, never Wonder Guard, trapping abilities or ones tied to one Pokémon's form ----
+    const BAN_ABIL = new Set(['wonderguard', 'shadowtag', 'arenatrap', 'magnetpull', 'multitype', 'stancechange', 'schooling', 'disguise',
+      'battlebond', 'powerconstruct', 'shieldsdown', 'rkssystem', 'gulpmissile', 'iceface', 'hungerswitch', 'zerotohero', 'commander',
+      'zenmode', 'forecast', 'flowergift', 'terashift', 'teraformzero', 'asone', 'comatose', 'imposter', 'illusion', 'truant']);
+    // (species store abilities in one byte, so only the first 255 can be given)
+    const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (!BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a))) abilPool.push(a);
+    if (opts.abilities && abilPool.length > 20) {
+      for (const s of allSpecies) {
+        const o = D.stats + s * D.statSize, a1 = rnd.pick(abilPool);
+        let a2 = 0; if (u16(o + 24)) { do { a2 = rnd.pick(abilPool); } while (a2 === a1); }
+        w16(o + 22, a1); w16(o + 24, a2);
+      }
+    }
+    // ---- level-up moves: every move replaced at random, the first four learned at level 1 ----
+    // Any move up to Gen 9 that has battle data (PP), except Struggle and moves that only work for one Pokémon's form.
+    // Blank (0) entries in MaxDex's lists get real moves too.
+    const BAN_MOVE = new Set(['struggle', 'dynamaxcannon', 'hyperspacefury', 'aurawheel', 'darkvoid', 'ivycudgel', 'ragingbull', 'ordersup', 'orderup']);
+    const movePool = new Set();
+    for (let m = 1; m < D.moveCount; m++) if (D.movePP(m) > 0 && !BAN_MOVE.has(norm(D.moveName(m)))) movePool.add(m);
+    if (movePool.size < 300) for (const s of allSpecies) for (const e of D.learnEntries(s)) { const m = u16(e); if (m > 0 && m < D.moveCount && !BAN_MOVE.has(norm(D.moveName(m)))) movePool.add(m); }
+    const moves = [...movePool];
+    const doneLists = new Set();
+    for (const s of allSpecies) {
+      const es = D.learnEntries(s); if (!es.length || doneLists.has(es[0])) continue; doneLists.add(es[0]);
+      if (opts.moves) {
+        const used = new Set(); let lv1 = 0;
+        for (const e of es) {
+          let m; do { m = rnd.pick(moves); } while (used.has(m)); used.add(m); w16(e, m);
+          if (R[e + 2] !== 0 && lv1 < 4) { R[e + 2] = 1; lv1++; }
+        }
+      } else {
+        // keep MaxDex's moves, but fill its blank entries so nothing starts with no moves
+        const used = new Set(es.map((e) => u16(e)));
+        for (const e of es) if (!u16(e)) { let m; do { m = rnd.pick(moves); } while (used.has(m)); used.add(m); w16(e, m); }
+      }
+    }
+
     // ---- starters ----
     const order = [1, 4, 7]; // Bulbasaur, Charmander, Squirtle
     const newStarters = [];
@@ -234,7 +317,15 @@ const KPMaxDex = (() => {
         ...enc('the ' + tn + ' POK\u00e9MON ' + nm + '?')];
       if (msg.length <= end - at) { R.set(msg, at); R.fill(0xFF, at + msg.length, end); }
     }
-    log.push('--Starters--', 'Bulbasaur -> ' + N(newStarters[0]), 'Charmander -> ' + N(newStarters[1]), 'Squirtle -> ' + N(newStarters[2]), '');
+    const describe = (s) => {
+      const o = D.stats + s * D.statSize, st = [...R.slice(o, o + 6)];
+      const ab = [u16(o + 22), u16(o + 24)].filter(Boolean).map(D.abilName).join(' / ');
+      return N(s) + ': HP ' + st[0] + ', Atk ' + st[1] + ', Def ' + st[2] + ', Spe ' + st[3] + ', SpA ' + st[4] + ', SpD ' + st[5] + ' | ' + ab;
+    };
+    const learnTxt = (s) => D.learnEntries(s).map((e) => D.moveName(u16(e)) + ' ' + (R[e + 2] || 'Evo')).join(', ');
+    log.push('--Starters--');
+    ['Bulbasaur', 'Charmander', 'Squirtle'].forEach((o, k) => log.push(o + ' -> ' + describe(newStarters[k]), '  Moves: ' + learnTxt(newStarters[k])));
+    log.push('');
 
     // ---- wild Pokémon: each species in an area maps to its own random species; levels scaled ----
     const lvl = (l) => Math.max(1, Math.min(100, Math.round(l * opts.levels)));
@@ -372,6 +463,11 @@ const KPMaxDex = (() => {
     }
     log.push(changedItems + ' items randomized (' + D.itemBalls.length + ' item balls, ' + D.hidden.length + ' hidden items).', '');
 
+    if (opts.stats || opts.abilities || opts.moves) {
+      log.push('--Pok\u00e9mon (stats, abilities, level-up moves)--');
+      for (const s of all) log.push(describe(s), '  ' + learnTxt(s));
+      log.push('');
+    }
     const head = ['Randomized FireRed MaxDex', 'Preset: ' + (PRESETS[presetName] ? presetName : 'Kaizo'), 'Seed: ' + seed, ''];
     return { rom: R, log: head.concat(log).join('\n'), seed, starters: newStarters.map(N) };
   }
