@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=8ce9166a65">
+<link rel="manifest" href="manifest.webmanifest?v=b51bfbb191">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -110,17 +110,23 @@ body.kp-ds #game .b_a, body.kp-ds #game .b_b, body.kp-ds #game .b_x, body.kp-ds 
   body.kp-ds #game .ejs_canvas { height: calc(100% - 300px) !important; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
-  /* DS sideways, like a DS skin: the two screens side by side across the top, D-pad and face buttons in the bottom
-     corners, and Menu / L / R / New run in a row at the bottom middle. */
+  /* DS sideways: the two screens side by side, as big as fits above the controls; D-pad and face buttons tucked
+     into the bottom corners; Menu / L / R / Select / Start / New run in one row at the bottom middle. */
+  body.kp-ds #game { --zone: 116px; --pad-bottom: 0px; }
   body.kp-ds #game .ejs_canvas { left: 50% !important; right: auto !important; top: 0 !important; bottom: auto !important; transform: translateX(-50%);
-    width: min(100%, calc((100dvh - 180px) * 8 / 3)) !important; height: auto !important; aspect-ratio: 8 / 3; }
-  body.kp-ds #game .ejs_virtualGamepad_left { left: 6px !important; }
+    width: min(100%, calc((100dvh - 150px) * 8 / 3)) !important; height: auto !important; aspect-ratio: 8 / 3; }
+  body.kp-ds #game .ejs_virtualGamepad_left { left: 6px !important; width: 116px !important; height: 116px !important; }
   body.kp-ds #game .ejs_virtualGamepad_right { right: 6px !important; }
-  body.kp-ds .bar { top: auto !important; bottom: 8px; left: 50% !important; right: auto !important; transform: translateX(-50%); padding: 0 !important; justify-content: center; width: max-content; }
+  body.kp-ds #game .b_select, body.kp-ds #game .b_start { display: none !important; }
+  body.kp-ds .bar { top: auto !important; bottom: 8px; left: 50% !important; right: auto !important; transform: translateX(-50%); padding: 0 !important; justify-content: center; width: max-content; gap: 5px; }
+  body.kp-ds .bar .barbtn { padding: 0 9px; }
+  body.kp-ds .dsbtn { display: inline-flex; font-size: .82rem !important; font-weight: 600 !important; }
   body.kp-ds #rBtn { margin-left: 0; }
-  body.kp-ds .info { display: none; }
+  body.kp-ds .info, body.kp-ds #speedTag { display: none !important; }
 }
 #dsCoreBtn { display: none; }
+.dsbtn { display: none !important; }
+@media (orientation: landscape) and (max-height: 520px) { body.kp-ds .dsbtn { display: inline-flex !important; } }
 body.kp-ds #dsCoreBtn { display: flex; }
 
 /* Menu sheet */
@@ -188,6 +194,8 @@ body.kp-ds #dsCoreBtn { display: flex; }
     <span class="info" id="info"></span>
     <span class="speedtag" id="speedTag" hidden></span>
     <button class="barbtn lrbtn" id="rBtn" aria-label="R button">R</button>
+    <button class="barbtn lrbtn dsbtn" id="selBtn" aria-label="Select button">Select</button>
+    <button class="barbtn lrbtn dsbtn" id="startBtn" aria-label="Start button">Start</button>
     <button class="barbtn newtop" id="newTopBtn">New run</button>
   </div>
   <div class="stage">
@@ -232,12 +240,12 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=8ce9166a65"></script>
-<script src="kp-config.js?v=8ce9166a65"></script>
-<script src="kp-gen3.js?v=8ce9166a65"></script>
-<script src="kp-cloud.js?v=8ce9166a65"></script>
-<script src="kp-tracker.js?v=8ce9166a65"></script>
-<script src="kp-corecache.js?v=8ce9166a65"></script>
+<script src="kp-store.js?v=b51bfbb191"></script>
+<script src="kp-config.js?v=b51bfbb191"></script>
+<script src="kp-gen3.js?v=b51bfbb191"></script>
+<script src="kp-cloud.js?v=b51bfbb191"></script>
+<script src="kp-tracker.js?v=b51bfbb191"></script>
+<script src="kp-corecache.js?v=b51bfbb191"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -270,7 +278,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   if (!setup.key) { setup.key = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); try { await KPStore.set('setup', setup); } catch (e) {} }
   const runInfo = { runKey: setup.key + '-' + run.id, game: gameCode, label: setup.label, preset: run.preset, runNo: run.id };
   let species = null, lastBackup = 0;
-  fetch('gen3-species.json?v=8ce9166a65').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
+  fetch('gen3-species.json?v=b51bfbb191').then((r) => r.json()).then((j) => { species = j; }).catch(() => {});
   // Starter saves must come from before the first Pokémon, or every run would start with that same Pokémon.
   const hasParty = (buf) => { try { const p = KPGen3.read(buf, gameCode, null); return !!(p && p.party.length); } catch (e) { return false; } };
   if (startSave && hasParty(startSave)) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
@@ -407,7 +415,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   try { const saved = localStorage.getItem('kp:speed'); if (saved === 'fast' || saved === 'slow') setSpeed(saved); } catch (e) {}
 
   // ---- L and R in the bar (phone sideways) ----
-  for (const [id, input] of [['lBtn', 10], ['rBtn', 11]]) {
+  for (const [id, input] of [['lBtn', 10], ['rBtn', 11], ['selBtn', 2], ['startBtn', 3]]) {
     const btn = $(id);
     const press = (v) => { btn.classList.toggle('down', !!v); try { const e = emu(); if (e) e.gameManager.simulateInput(0, input, v); } catch (err) {} };
     btn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); try { btn.setPointerCapture(ev.pointerId); } catch (e) {} press(1); });
@@ -586,6 +594,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     $('starterClearBtn').hidden = !has;
   }
   showStarter();
+  if (setup.core === 'nds' && !startSave) $('starterHint').textContent = 'For DS games, set this yourself: after the intro, save in the game before you pick your starter (for example in your room), then tap Use this save for new runs. Every New run will then start from that point.';
   $('starterBtn').addEventListener('click', async () => {
     const e = emu(); const hint = $('starterHint');
     if (!e) { hint.className = 'hint'; hint.textContent = 'Start the game first.'; return; }
@@ -597,7 +606,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       startSave = data.slice().buffer;
       await KPStore.set('startSave', startSave);
       if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch((err) => console.warn(err));
-      hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.';
+      hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.'
+        + (setup.core === 'nds' ? ' The site can\u2019t check DS saves, so make sure this one is from before you picked your starter, or every run will start with the same Pok\u00e9mon.' : '');
       showStarter();
     } catch (err) { console.error(err); hint.className = 'hint'; hint.textContent = 'Couldn\u2019t store the save: ' + ((err && err.message) || err); }
   });
