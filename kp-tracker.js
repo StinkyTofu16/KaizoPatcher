@@ -294,25 +294,33 @@ const KPTracker = (() => {
         const enemy = []; for (let k = 0; k < 6; k++) { const m = mon(A.enemy + 100 * k); if (!m) break; enemy.push(m); }
         const byPid = new Map(); party.forEach((m) => byPid.set(m.pid, ['p', m])); enemy.forEach((m) => byPid.set(m.pid, ['e', m]));
         const ew = mem.ewram, edv = dvOf(ew);
+        // Battle record layout: FireRed/Emerald's 0x58 bytes, or MaxDex's 0x5C (16-bit ability, so the fields after it
+        // move: types 0x22/0x23, PP 0x25, HP 0x2A, level 0x2C, max HP 0x2E, PP Ups 0x3D, personality 0x4C, status 0x50).
+        const B = MX ? { size: 0x5C, abil16: true, t1: 0x22, t2: 0x23, pp: 0x25, hp: 0x2A, level: 0x2C, maxHp: 0x2E, ppBonus: 0x3D, pid: 0x4C, status: 0x50 }
+          : { size: 0x58, abil16: false, t1: 0x21, t2: 0x22, pp: 0x24, hp: 0x28, level: 0x2A, maxHp: 0x2C, ppBonus: 0x3B, pid: 0x48, status: 0x4C };
+        const recAbility = (off) => (B.abil16 ? edv.getUint16(off + 0x20, true) : ew[off + 0x20]);
         let mine = null, theirs = null;
         // A real battle record has every stat stage between 0 and 12, and its HP stage is always 6 (no change).
         const recordOk = (off) => { if (ew[off + 0x18] !== 6) return false; for (let i = 1; i < 8; i++) if (ew[off + 0x18 + i] > 12) return false; return true; };
         const consider = (off) => {
-          const hit = byPid.get(edv.getUint32(off + 0x48, true)); if (!hit) return;
+          const hit = byPid.get(edv.getUint32(off + B.pid, true)); if (!hit) return;
           const [side, m] = hit;
-          if (edv.getUint16(off, true) !== m.species || ew[off + 0x2A] !== m.level || !recordOk(off)) return;
+          if (edv.getUint16(off, true) !== m.species || ew[off + B.level] !== m.level || !recordOk(off)) return;
           if (side === 'p' && !mine) mine = { m, off }; else if (side === 'e' && !theirs) theirs = { m, off };
         };
         // The game's battle records (4 battlers) at their known address first; the game also keeps temporary
         // copies of the same data elsewhere, which can hold leftover values, so memory is searched only as a fallback.
         const base = A.battleMons & 0x3FFFF;
-        for (let k = 0; k < 4; k++) if (base + 0x58 * (k + 1) <= ew.length) consider(base + 0x58 * k);
-        for (let off = 0; off + 0x58 <= ew.length && !(mine && theirs); off += 4) consider(off);
+        for (let k = 0; k < 4; k++) if (base + B.size * (k + 1) <= ew.length) consider(base + B.size * k);
+        for (let off = 0; off + B.size <= ew.length && !(mine && theirs); off += 4) consider(off);
         const applyLive = ({ m, off }) => {
-          if (!edv.getUint16(off + 0x2C, true) || !edv.getUint16(off + 2, true)) return m;
-          m.hp = [edv.getUint16(off + 0x28, true), edv.getUint16(off + 0x2C, true)];
+          if (!edv.getUint16(off + B.maxHp, true) || !edv.getUint16(off + 2, true)) return m;
+          m.hp = [edv.getUint16(off + B.hp, true), edv.getUint16(off + B.maxHp, true)];
           m.stats = { HP: m.hp[1], ATK: edv.getUint16(off + 2, true), DEF: edv.getUint16(off + 4, true), SPA: edv.getUint16(off + 8, true), SPD: edv.getUint16(off + 10, true), SPE: edv.getUint16(off + 6, true) };
-          m.moves.forEach((mv, i) => { mv.ppLeft = ew[off + 0x24 + i]; });
+          // the record's own moves (they can change in battle, e.g. Mimic) with their PP
+          const recMoves = [0, 1, 2, 3].map((i) => edv.getUint16(off + 0x0C + 2 * i, true));
+          if (recMoves.every((id, i) => id === (m.moves[i] && m.moves[i].id) || (!id && !m.moves[i]))) m.moves.forEach((mv, i) => { mv.ppLeft = ew[off + B.pp + i]; });
+          else if (recMoves.some((id) => move(id))) m.moves = recMoves.map((id, i) => { const mv = move(id); return mv ? { ...mv, ppLeft: ew[off + B.pp + i], ppMax: (m.moves.find((x) => x.id === id) || {}).ppMax || mv.pp } : null; }).filter(Boolean);
           // Stat stages (6 = no change): HP, ATK, DEF, SPE, SPA, SPD, ACC, EVA.
           // Stat stages are trusted only if, when this Pokémon first came into the battle, every stage read as
           // unchanged (6). Otherwise those bytes aren't stat stages on this game, and no changes are shown, so
@@ -324,9 +332,13 @@ const KPTracker = (() => {
           m.stages = stages;
           // Current types (abilities like Color Change and moves like Conversion change them in battle). Trusted only
           // when the record's ability byte is one of this species' abilities, i.e. the record is read at the right spot.
-          const info = species(m.species), t1 = ew[off + 0x21], t2 = ew[off + 0x22];
-          if (info && info.abilities.includes(ew[off + 0x20]) && t1 < TYPES.length && t2 < TYPES.length && t1 !== 9 && t2 !== 9) m.types = [...new Set([TYPES[t1], TYPES[t2]])];
-          const st = ew[off + 0x4C];
+          // Current ability too (Skill Swap, Mummy, Wandering Spirit, Entrainment...). Trusted when it's a valid ability
+          // and the types read sensibly, i.e. the record is read at the right spot.
+          const info = species(m.species), t1 = ew[off + B.t1], t2 = ew[off + B.t2], ab = recAbility(off);
+          const typesOk = t1 < TYPES.length && t2 < TYPES.length && t1 !== 9 && t2 !== 9;
+          if (info && typesOk && (info.abilities.includes(ab) || MX)) m.types = [...new Set([TYPES[t1], TYPES[t2]])];
+          if (typesOk && ab > 0 && ability(ab)) m.ability = ability(ab);
+          const st = ew[off + B.status];
           m.status = st & 7 ? 'SLP' : st & 8 ? 'PSN' : st & 16 ? 'BRN' : st & 32 ? 'FRZ' : st & 64 ? 'PAR' : st & 128 ? 'TOX' : '';
           return m;
         };
@@ -336,10 +348,10 @@ const KPTracker = (() => {
         if (f) foe = { species: f.species, name: f.name, level: f.level, types: f.types, bst: f.bst, hpPct: f.hp[1] ? Math.round(f.hp[0] / f.hp[1] * 100) : 0, used: [] };
         // Moves the opponent has used: its PP for that move is below the maximum (base PP plus PP Ups).
         if (foe && theirs) {
-          const off = theirs.off, bonus = ew[off + 0x3B];
+          const off = theirs.off, bonus = ew[off + B.ppBonus];
           for (let i = 0; i < 4; i++) {
             const mv = move(edv.getUint16(off + 0x0C + 2 * i, true)); if (!mv) continue;
-            const max = mv.pp + Math.floor(mv.pp * ((bonus >> (2 * i)) & 3) / 5), left = ew[off + 0x24 + i];
+            const max = mv.pp + Math.floor(mv.pp * ((bonus >> (2 * i)) & 3) / 5), left = ew[off + B.pp + i];
             if (left < max) foe.used.push({ ...mv, eff: mv.power && lead ? effectiveness(mv.type, lead.types) : null });
           }
         }
