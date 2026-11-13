@@ -185,6 +185,10 @@ const KPMaxDex = (() => {
       }
     }
     if (D.starters.length !== 3) fail('the starters');
+    // the starter table read by GetStarterSpecies: {Bulbasaur, Squirtle, Charmander} as u16, pointed to from code
+    for (let k = find(R, Uint8Array.of(1, 0, 7, 0, 4, 0)); k !== -1 && D.starterTable === undefined; k = find(R, Uint8Array.of(1, 0, 7, 0, 4, 0), k + 1)) {
+      if ((k & 1) === 0) for (let o = 0; o + 4 <= 0x400000; o += 4) if (u32(o) === k + 0x08000000) { D.starterTable = k; break; }
+    }
 
     // item balls: copyvarifnotzero 0x8000, item; copyvarifnotzero 0x8001, n; callstd 1
     D.itemBalls = [];
@@ -242,11 +246,8 @@ const KPMaxDex = (() => {
       const nm = D.name(s); if (!nm || /^\?+$/.test(nm) || nm === '-' || D.bst(s) === 0) continue;
       valid.add(s); baseByName.set(nm, s);
     }
-    // regional forms (Alolan, Galarian, Hisuian, Paldean): name = base name + A/G/H/P, and not a boosted battle form
-    for (let s = lastNational + 1; s < D.count; s++) {
-      const nm = D.name(s), b = baseByName.get(nm.slice(0, -1));
-      if (b && /[AGHP]$/.test(nm) && D.bst(s) > 0 && D.bst(s) <= D.bst(b) + 30) valid.add(s);
-    }
+    // Alternate forms (regional forms, Megas, battle forms) are left out of every pool, as in the site's presets
+    // (Universal Pokémon Randomizer: no alt formes for starters, wild, trainers or static encounters).
     const legendNorm = LEGENDS.map(norm);
     const isLegend = (s) => {
       const a = norm(D.name(s));
@@ -405,6 +406,9 @@ const KPMaxDex = (() => {
     while (newStarters.length < 3) { const s = rnd.pick(all); if (!newStarters.includes(s)) newStarters.push(s); }
     const starterFor = (orig) => newStarters[order.indexOf(orig)];
     for (const st of D.starters) { w16(st.off, starterFor(u16(st.off))); w16(st.rivalOff, starterFor(u16(st.rivalOff))); }
+    // FireRed's starter table (Bulbasaur, Squirtle, Charmander, by the slot you picked): the game looks up "your
+    // starter" there, so it must hold the new starters too.
+    for (let k = D.starterTable === undefined ? -1 : 0; k >= 0 && k < 3; k++) w16(D.starterTable + 2 * k, starterFor(u16(D.starterTable + 2 * k)));
     // Oak's "I see! BULBASAUR is your choice. ... the GRASS POKéMON BULBASAUR?" lines
     for (let k = 0; k < 3; k++) {
       const orig = ['BULBASAUR', 'CHARMANDER', 'SQUIRTLE'][k];
@@ -422,7 +426,16 @@ const KPMaxDex = (() => {
       return N(s) + ': HP ' + st[0] + ', Atk ' + st[1] + ', Def ' + st[2] + ', Spe ' + st[3] + ', SpA ' + st[4] + ', SpD ' + st[5] + ' | ' + ab;
     };
     const learnTxt = (s) => D.learnEntries(s).map((e) => D.moveName(u16(e)) + ' ' + (R[e + 2] || 'Evo')).join(', ');
+    // Starters hold a random item (the presets' "random starter held items", bad items banned): the lab's
+    // givemon 0x4002, 5, item. Held items: Berries and hold items, minus the useless ones.
+    const HOLD_BAN = new Set([175, 176, 177, 178, 181, 184, 186, 191, 197, 199, 202, 205, 206, 214, 215, 218, 219, 220, 221, 222, 223, 224, 225]);
+    const holdItems = []; for (let k = 133; k <= 225; k++) if (!HOLD_BAN.has(k) && !/^\?/.test(D.itemName(k)) && D.itemPocket(k) !== 2) holdItems.push(k);
+    const starterItems = [];
+    for (let k = D.starters[0].off - 0x400; k < D.starters[0].off + 0x800; k++) {
+      if (R[k] === 0x79 && R[k + 1] === 0x02 && R[k + 2] === 0x40 && R[k + 3] === 5 && u16(k + 4) === 0 && u32(k + 6) === 0) { const it = rnd.pick(holdItems); w16(k + 4, it); starterItems.push(it); }
+    }
     log.push('--Starters--');
+    if (starterItems.length) log.push('Starter held item: ' + starterItems.map((i) => D.itemName(i)).join(', '));
     ['Bulbasaur', 'Charmander', 'Squirtle'].forEach((o, k) => log.push(o + ' -> ' + describe(newStarters[k]), '  Moves: ' + learnTxt(newStarters[k])));
     log.push('');
 
