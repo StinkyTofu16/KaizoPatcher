@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=fbfc4804a9">
+<link rel="manifest" href="manifest.webmanifest?v=eb005ad610">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,13 +240,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=fbfc4804a9"></script>
-<script src="kp-config.js?v=fbfc4804a9"></script>
-<script src="kp-gen3.js?v=fbfc4804a9"></script>
-<script src="kp-cloud.js?v=fbfc4804a9"></script>
-<script src="kp-maxnames.js?v=fbfc4804a9"></script>
-<script src="kp-tracker.js?v=fbfc4804a9"></script>
-<script src="kp-corecache.js?v=fbfc4804a9"></script>
+<script src="kp-store.js?v=eb005ad610"></script>
+<script src="kp-config.js?v=eb005ad610"></script>
+<script src="kp-gen3.js?v=eb005ad610"></script>
+<script src="kp-cloud.js?v=eb005ad610"></script>
+<script src="kp-maxnames.js?v=eb005ad610"></script>
+<script src="kp-tracker.js?v=eb005ad610"></script>
+<script src="kp-corecache.js?v=eb005ad610"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -284,7 +284,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const mdxGen4 = /MAX\.Dex Gen 4/.test(setup.fam || ''); // MAX.Dex Gen 4 / 4.5: FireRed's memory, more species
   const readCode = maxdex ? 'BPRX' : mdxGen4 ? 'BPRY' : gameCode;
   const unmapped = false;
-  fetch('gen3-species.json?v=fbfc4804a9').then((r) => r.json()).then((j) => {
+  fetch('gen3-species.json?v=eb005ad610').then((r) => r.json()).then((j) => {
     if (maxdex || mdxGen4) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1;

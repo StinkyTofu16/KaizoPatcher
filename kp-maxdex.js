@@ -335,19 +335,16 @@ const KPMaxDex = (() => {
       ripen: 'Doubles Berry effects.', powerspot: 'Powers up allies\' moves.',
     };
     const placeholderDesc = (a) => norm(D.abilDescText(a)) === norm(D.abilName(a));
-    // MAX.Dex Gen 4 / 4.5 (FireRed's layout) have names and descriptions for Gen 4/5 abilities, but the hack itself never
-    // gives them to any Pokémon (not even Gen 4/5 ones) except Download, so only Gen 3 abilities (up to Air Lock) and
-    // ones the game itself uses count as working there.
-    const nativeAbil = new Set(); for (const sp of allSpecies) { nativeAbil.add(D.getAbil(sp, 0)); nativeAbil.add(D.getAbil(sp, 1)); }
-    let lastGen3 = 0; for (let a = 1; a < D.abilCount; a++) if (norm(D.abilName(a)) === 'airlock') lastGen3 = a;
+    // MAX.Dex Gen 4 / 4.5 (FireRed's layout): every ability up to Moxie was tested in real battles in an emulator
+    // (each one against the same battle without it), and all of them work, so they're all in the pool.
     const works = !D.abilWide
-      ? (a) => a <= lastGen3 || nativeAbil.has(a)
+      ? (a) => !!D.abilName(a).trim()
       : (a) => D.abilDesc === undefined || !placeholderDesc(a) || !!DESC[norm(D.abilName(a))];
     for (let a = 1; a < Math.min(D.abilCount, 256); a++) {
       const d = DESC[norm(D.abilName(a))];
       if (d && placeholderDesc(a) && D.abilDesc !== undefined) { const t = enc(d); R.set(t, free); R[free + t.length] = 0xFF; w32(D.abilDesc + a * 4, free + 0x08000000); free += t.length + 1; }
     }
-    const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (works(a) && !BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a))) abilPool.push(a);
+    const abilPool = []; for (let a = 1; a < Math.min(D.abilCount, 256); a++) if (works(a) && !BAN_ABIL.has(norm(D.abilName(a))) && !/^-+$/.test(D.abilName(a)) && D.abilName(a).trim()) abilPool.push(a);
     const pickAbility = (...not) => {
       for (;;) {
         let a = rnd.pick(abilPool);
@@ -617,7 +614,7 @@ const KPMaxDex = (() => {
       for (const s of all) log.push(describe(s), '  ' + learnTxt(s));
       log.push('');
     }
-    const head = ['Randomized FireRed MaxDex', 'Preset: ' + (PRESETS[presetName] ? presetName : 'Kaizo'), 'Seed: ' + seed, ''];
+    const head = ['Randomized FireRed ' + (D.abilWide ? 'MaxDex' : D.count > 600 ? 'MAX.Dex Gen 4.5' : 'MAX.Dex Gen 4'), 'Preset: ' + (PRESETS[presetName] ? presetName : 'Kaizo'), 'Seed: ' + seed, ''];
     return { rom: R, log: head.concat(log).join('\n'), seed, starters: newStarters.map(N) };
   }
 
