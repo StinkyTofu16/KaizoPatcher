@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=3d5890f90e">
+<link rel="manifest" href="manifest.webmanifest?v=761f34c915">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,13 +240,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=3d5890f90e"></script>
-<script src="kp-config.js?v=3d5890f90e"></script>
-<script src="kp-gen3.js?v=3d5890f90e"></script>
-<script src="kp-cloud.js?v=3d5890f90e"></script>
-<script src="kp-maxnames.js?v=3d5890f90e"></script>
-<script src="kp-tracker.js?v=3d5890f90e"></script>
-<script src="kp-corecache.js?v=3d5890f90e"></script>
+<script src="kp-store.js?v=761f34c915"></script>
+<script src="kp-config.js?v=761f34c915"></script>
+<script src="kp-gen3.js?v=761f34c915"></script>
+<script src="kp-cloud.js?v=761f34c915"></script>
+<script src="kp-maxnames.js?v=761f34c915"></script>
+<script src="kp-tracker.js?v=761f34c915"></script>
+<script src="kp-corecache.js?v=761f34c915"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -282,7 +282,9 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   // FireRed MaxDex: memory and species differ from FireRed's, so it's read as "BPRX", with names from the game file.
   const maxdex = /MaxDex/.test(setup.fam || '');
   const readCode = maxdex ? 'BPRX' : gameCode;
-  fetch('gen3-species.json?v=3d5890f90e').then((r) => r.json()).then((j) => {
+  // MAX.Dex Gen 4 / 4.5: their memory and save layout aren't mapped yet, so no tracker, progress or automatic intro save.
+  const unmapped = /MAX\.Dex Gen 4/.test(setup.fam || '');
+  fetch('gen3-species.json?v=761f34c915').then((r) => r.json()).then((j) => {
     if (maxdex) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1; const pat = [0xBC, 0xE9, 0xE0, 0xD6, 0xD5, 0xE7, 0xD5, 0xE9, 0xE6, 0xFF]; // "Bulbasaur"
@@ -331,7 +333,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     el.hidden = false;
   }
   async function track() {
-    const e = emu(); if (!e || !species || setup.core === 'nds') return null; // DS: no Gen 3 progress to read
+    const e = emu(); if (!e || !species || setup.core === 'nds' || unmapped) return null; // DS: no Gen 3 progress to read
     try {
       e.gameManager.saveSaveFiles();
       const data = e.gameManager.getSaveFile(false);
@@ -353,7 +355,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       showProgress(p);
       await KPStore.set('progress', { runKey: runInfo.runKey, ...p });
       // The intro save: the first in-game save made before getting a Pokémon.
-      if (!startSave && fromSave && fromSave.trainer && fromSave.party.length === 0) {
+      if (!startSave && !unmapped && fromSave && fromSave.trainer && fromSave.party.length === 0) {
         startSave = data.slice().buffer;
         await KPStore.set('startSave', startSave);
         showStarter();
@@ -447,7 +449,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   function ensureTracker() {
     if (trackerTried) return;
     trackerTried = true;
-    try { tracker = KPTracker.load(runRom); } catch (err) { console.warn('Tracker unavailable', err); }
+    try { tracker = unmapped ? null : KPTracker.load(runRom); } catch (err) { console.warn('Tracker unavailable', err); }
     applyTracker();
   }
   const TYPEC = { Normal: '#9a9a78', Fire: '#e8803a', Water: '#5c8ae8', Grass: '#6abf4b', Electric: '#e8c430', Ice: '#80cfcf', Fighting: '#b8352c', Poison: '#9a46a0',
