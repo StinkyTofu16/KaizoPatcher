@@ -379,6 +379,9 @@ const KPMaxDex = (() => {
     for (let m = 1; m < D.moveCount; m++) {
       const nm = norm(D.moveName(m));
       if (m > D.maxLearnMove || !D.movePP(m) || nm === 'struggle' || HMS.has(nm)) continue; // (16-bit lists hold moves up to 511)
+      // MAX.Dex Gen 4 / 4.5: every Gen 4/5 move was tried in real battles in an emulator. These three always fail there
+      // (U-turn and Volt Switch whenever there's a Pokémon to switch to, Last Resort even after the other moves were used).
+      if (!D.abilWide && (nm === 'uturn' || nm === 'voltswitch' || nm === 'lastresort')) continue;
       validMoves.push(m);
       const pow = D.movePow(m) * (MULTI2.has(nm) ? 2 : MULTI5.has(nm) ? 3 : 1), acc = D.moveAcc(m);
       if (!NOT_DAMAGING.has(nm) && D.moveCat(m) !== 2 && (pow >= 100 || (pow >= 50 && (acc >= 90 || acc === 0)))) damaging.push(m);
