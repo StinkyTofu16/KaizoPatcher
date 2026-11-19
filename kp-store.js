@@ -81,7 +81,40 @@ const KPStore = (() => {
     finish();
     try { indexedDB.deleteDatabase('kaizopatcher'); } catch (e) {}
   }
-  return { get, set, del, migrate };
+
+  // ---- Game library: several games on this device, each with its own runs and saves. ----
+  // The game being played lives under the plain keys above; other games are kept under "g:<id>:<key>".
+  // In-game saves are stored by the emulator under each run's own name, so they stay put while a game is put away.
+  const GAME_KEYS = ['setup', 'setupRom', 'run', 'runRom', 'runLog', 'startSave', 'startSaveFor', 'progress'];
+  const SPARE_KEYS = ['spare', 'spareRom', 'spareLog']; // a ready-made next run; dropped when a game is put away
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  async function library() { const l = await get('library'); return Array.isArray(l) ? l : []; }
+  async function saveLibrary(l) { await set('library', l); }
+  // Move the current game into the library (keeps its runs and saves). Returns its id, or null if there was none.
+  async function shelve() {
+    const s = await get('setup'); if (!s) return null;
+    if (!s.key) { s.key = newId(); await set('setup', s); }
+    const r = await get('run'), id = s.key;
+    for (const k of GAME_KEYS) { const v = await get(k); if (v !== undefined) await set('g:' + id + ':' + k, v); else await del('g:' + id + ':' + k); }
+    for (const k of [...GAME_KEYS, ...SPARE_KEYS]) await del(k);
+    const l = (await library()).filter((g) => g.id !== id);
+    l.unshift({ id, label: s.label, presetName: s.presetName, sys: s.sys, runs: r ? r.id : 0, at: Date.now() });
+    await saveLibrary(l);
+    return id;
+  }
+  // Make a stored game the current one (the current game is put away first).
+  async function switchTo(id) {
+    const l = await library(); if (!l.some((g) => g.id === id)) throw new Error('That game is no longer on this device.');
+    const cur = await get('setup'); if (cur && cur.key === id) return;
+    await shelve();
+    for (const k of GAME_KEYS) { const v = await get('g:' + id + ':' + k); if (v !== undefined) await set(k, v); await del('g:' + id + ':' + k); }
+    await saveLibrary((await library()).filter((g) => g.id !== id));
+  }
+  async function forget(id) {
+    for (const k of GAME_KEYS) await del('g:' + id + ':' + k);
+    await saveLibrary((await library()).filter((g) => g.id !== id));
+  }
+  return { get, set, del, migrate, library, shelve, switchTo, forget };
 })();
 
 const KP_CORES = { GBA: { core: 'gba', ext: 'gba' }, GB: { core: 'gb', ext: 'gb' }, GBC: { core: 'gb', ext: 'gbc' }, NDS: { core: 'nds', ext: 'nds' } };

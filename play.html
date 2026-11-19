@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=c953fa452b">
+<link rel="manifest" href="manifest.webmanifest?v=eb43a61a57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,6 +57,15 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 .hint { color: var(--muted); font-size: .86rem; margin: 0; }
 .linkbtn { background: none; border: 0; color: var(--accent); font: 600 .9rem var(--f-body); padding: 6px 0; min-height: 0; width: auto; text-align: left; }
 .install { border-style: dashed; }
+.lib { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.lib li { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.lib li:first-child { border-top: 0; padding-top: 0; }
+.lib .info { flex: 1; min-width: 0; }
+.lib .name { font-weight: 600; overflow-wrap: anywhere; }
+.lib .sub { color: var(--muted); font-size: .85rem; }
+.lib button { width: auto; min-height: 44px; padding: 8px 14px; font-size: .92rem; }
+.lib .rm { border-color: var(--line); color: var(--muted); background: transparent; }
+.lib .rm.armed { border-color: var(--bad); color: var(--bad); }
 </style>
 </head>
 <body>
@@ -105,7 +114,13 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
   <section class="card" id="settings" hidden>
     <label class="field" for="presetSel"><span>Preset for new runs</span><select id="presetSel"></select></label>
     <button class="linkbtn" id="logBtn" hidden>Save this run's spoiler log</button>
-    <a class="linkbtn" href="index.html#step1">Change game or patch</a>
+    <a class="linkbtn" href="index.html#step1">Add another game or patch</a>
+  </section>
+
+  <section class="card" id="library" hidden>
+    <p class="eyebrow">Your other games</p>
+    <ul class="lib" id="libList"></ul>
+    <p class="hint">Each game keeps its own runs and saves on this device. Switching puts the current game here, so nothing is lost.</p>
   </section>
 
   <section class="card install" id="installTip" hidden>
@@ -118,11 +133,11 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=c953fa452b"></script>
-<script src="kp-random.js?v=c953fa452b"></script>
-<script src="kp-maxnames.js?v=c953fa452b"></script>
-<script src="kp-maxdex.js?v=c953fa452b"></script>
-<script src="kp-gen3.js?v=c953fa452b"></script>
+<script src="kp-store.js?v=eb43a61a57"></script>
+<script src="kp-random.js?v=eb43a61a57"></script>
+<script src="kp-maxnames.js?v=eb43a61a57"></script>
+<script src="kp-maxdex.js?v=eb43a61a57"></script>
+<script src="kp-gen3.js?v=eb43a61a57"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -238,6 +253,33 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
     startSave = await withTimeout(KPStore.get('startSave'), 15000);
     if (startSave && setup && (await withTimeout(KPStore.get('startSaveFor'), 15000)) !== [setup.fam, setup.label, setup.sys].join('|')) { startSave = null; await KPStore.del('startSave'); }
   } catch (e) { setup = null; }
+  // ---- Other games on this device ----
+  async function renderLibrary() {
+    let lib = []; try { lib = await KPStore.library(); } catch (e) {}
+    lib = lib.filter((g) => !setup || g.id !== setup.key);
+    $('library').hidden = !lib.length;
+    const ul = $('libList'); ul.textContent = '';
+    for (const g of lib) {
+      const li = document.createElement('li');
+      const info = document.createElement('div'); info.className = 'info';
+      const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = g.label;
+      const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = (g.presetName || '') + (g.runs ? ' \u00b7 run #' + g.runs : ' \u00b7 no runs yet');
+      info.append(nm, sub);
+      const sw = document.createElement('button'); sw.className = 'secondary'; sw.textContent = 'Switch';
+      sw.addEventListener('click', async () => {
+        sw.disabled = true; sw.textContent = 'Switching\u2026';
+        try { await KPStore.switchTo(g.id); location.replace('play.html'); }
+        catch (e) { console.error(e); sw.disabled = false; sw.textContent = 'Switch'; $('status').className = 'status bad'; $('status').textContent = 'Couldn\u2019t switch games: ' + ((e && e.message) || e); }
+      });
+      const rm = document.createElement('button'); rm.className = 'rm'; rm.textContent = 'Remove'; let armedRm = null;
+      rm.addEventListener('click', async () => {
+        if (!armedRm) { rm.classList.add('armed'); rm.textContent = 'Delete saves?'; armedRm = setTimeout(() => { armedRm = null; rm.classList.remove('armed'); rm.textContent = 'Remove'; }, 4000); return; }
+        clearTimeout(armedRm); rm.disabled = true; await KPStore.forget(g.id).catch(() => {}); renderLibrary();
+      });
+      li.append(info, sw, rm); ul.append(li);
+    }
+  }
+  await renderLibrary();
   if (!setup) { $('empty').hidden = false; return; }
 
   $('main').hidden = false; $('settings').hidden = false;
@@ -263,7 +305,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=c953fa452b')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=eb43a61a57')).json(); } catch (e) { presets = {}; }
   if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {

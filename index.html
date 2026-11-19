@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest?v=c953fa452b">
+<link rel="manifest" href="manifest.webmanifest?v=eb43a61a57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="KaizoPatcher">
@@ -504,9 +504,9 @@ const Engine = (() => {
 if (typeof module !== 'undefined') module.exports = Engine;
 
 </script>
-<script src="kp-store.js?v=c953fa452b"></script>
-<script src="kp-maxnames.js?v=c953fa452b"></script>
-<script src="kp-maxdex.js?v=c953fa452b"></script>
+<script src="kp-store.js?v=eb43a61a57"></script>
+<script src="kp-maxnames.js?v=eb43a61a57"></script>
+<script src="kp-maxdex.js?v=eb43a61a57"></script>
 <script>
 (async () => {
   let s = null, r = null;
@@ -858,7 +858,7 @@ function prepRandom(id, p) {
   $('playHint').textContent = !playable ? 'This game can\u2019t be played in the browser player yet. Randomize to a file instead.'
     : id.sys === 'NDS' ? 'Play in browser keeps this game and preset on your phone. DS games are big, so each New run takes a minute or two to re-randomize. The tracker isn\u2019t available for DS games yet.'
     : 'Play in browser keeps this game and preset on your phone. Every New run re-randomizes it and starts a fresh save.';;
-  KPStore.get('setup').then((s) => { if (s && playable) $('playHint').textContent += ' This replaces ' + s.label + ', your current browser game.'; }).catch(() => {});
+  KPStore.get('setup').then((s) => { if (s && playable) $('playHint').textContent += ' ' + s.label + ' stays on your Play page with its saves, so you can switch back any time.'; }).catch(() => {});
 }
 function loadCheerpJ() {
   if (cjReady) return cjReady;
@@ -925,10 +925,12 @@ $('playBtn').addEventListener('click', async () => {
     const label = r.romName.replace(/\.[^.]+$/, '');
     const sel = $('presetSel');
     const romBuf = await r.romBlob.arrayBuffer();
+    // The game being played now is kept in the library with its runs and saves; this one becomes the current game.
+    await KPStore.shelve();
     // The game file is stored once under its own key; the details record stays small.
     await KPStore.set('setupRom', romBuf);
     await KPStore.set('setup', { label, baseName: label, sys: id.sys, core: c.core, ext: c.ext, fam: randFam || FAMILY[id.ids[0]],
-      code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: noRand ? null : sel.value, presetName: noRand ? 'Not randomized' : sel.selectedOptions[0].textContent, noRandom: noRand, runs: 0 });
+      code: String.fromCharCode(...new Uint8Array(romBuf, id.sys === 'NDS' ? 0x0C : 0xAC, 4)), presetFile: noRand ? null : sel.value, presetName: noRand ? 'Not randomized' : sel.selectedOptions[0].textContent, noRandom: noRand, runs: 0, key: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
     for (const k of ['run', 'runRom', 'runLog', 'startSave', 'progress', 'spare', 'spareRom', 'spareLog']) await KPStore.del(k);
     location.href = 'play.html?new=1';
   } catch (e) {
