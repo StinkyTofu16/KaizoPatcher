@@ -245,6 +245,32 @@ const KPMaxDex = (() => {
     return D;
   }
 
+
+  // MAX.Dex Gen 4 / 4.5 skip Oak's parcel errand (Mom sends you straight to the lab and the Pokédex comes early),
+  // and with it the aide who hands out the Running Shoes, so the player never gets them. Tested in an emulator:
+  // no Running Shoes at that point even in the unmodified game. Fix: Mom's send-off script also gives the Running
+  // Shoes (flag 0x82F). Returns the number of bytes used at `at`, or 0 if the script isn't there (other builds).
+  const MOM_SENDOFF = [0x68, 0xAE, 0x16, 0x55, 0x40, 0x01, 0x00, 0x2A, 0x2B, 0x00, 0x16, 0x50, 0x40, 0x01, 0x00, 0x29, 0x2C, 0x00];
+  function findBytes(R, pat, from = 0) {
+    outer: for (let i = from; i + pat.length <= R.length; i++) { for (let k = 0; k < pat.length; k++) if (R[i + k] !== pat[k]) continue outer; return i; }
+    return -1;
+  }
+  function addRunningShoes(R, at) {
+    const o = findBytes(R, MOM_SENDOFF); if (o < 0 || findBytes(R, MOM_SENDOFF, o + 1) >= 0) return 0;
+    const back = 0x08000000 + o + 7; // continue after "setvar 0x4055, 1"
+    const s = [...MOM_SENDOFF.slice(0, 7), 0x29, 0x2F, 0x08, 0x05, back & 255, (back >> 8) & 255, (back >> 16) & 255, back >>> 24];
+    R.set(s, at);
+    const to = 0x08000000 + at; R.set([0x05, to & 255, (to >> 8) & 255, (to >> 16) & 255, to >>> 24, 0x00, 0x00], o); // goto (+2 unused bytes)
+    return s.length;
+  }
+  // For games played without the randomizer: same fix, placed in empty space at the end of the ROM.
+  function fixups(input) {
+    const R = new Uint8Array(input);
+    let at = -1; for (let i = R.length - 64; i > R.length / 2; i -= 16) { let ok = true; for (let k = 0; k < 64; k++) if (R[i + k] !== 0xFF) { ok = false; break; } if (ok) { at = i; break; } }
+    if (at > 0) addRunningShoes(R, at & ~3);
+    return R;
+  }
+
   function randomize(input, presetName, seed) {
     const opts = PRESETS[presetName] || PRESETS.Kaizo;
     const R = new Uint8Array(input); // copy
@@ -643,6 +669,7 @@ const KPMaxDex = (() => {
       labItem = item; break;
     }
     if (labItem !== null) log.push('Item beside the starters in Oak’s lab: ' + D.itemName(labItem), '');
+    if (!D.abilWide) { free = (free + 3) & ~3; const used = addRunningShoes(R, free); if (used) { free += used; log.push('Running Shoes: given when Mom sends you to Oak\u2019s lab (this build skips the aide who normally gives them).', ''); } }
 
     if (opts.stats || opts.abilities || opts.moves) {
       log.push('--Pok\u00e9mon (stats, abilities, level-up moves)--');
@@ -653,6 +680,6 @@ const KPMaxDex = (() => {
     return { rom: R, log: head.concat(log).join('\n'), seed, starters: newStarters.map(N) };
   }
 
-  return { randomize, locate, PRESETS: Object.keys(PRESETS) };
+  return { randomize, locate, fixups, PRESETS: Object.keys(PRESETS) };
 })();
 if (typeof module !== 'undefined') module.exports = KPMaxDex;
