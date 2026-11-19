@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=6e87751198">
+<link rel="manifest" href="manifest.webmanifest?v=c953fa452b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,11 +118,11 @@ select { font: 500 1rem var(--f-body); color: var(--ink); background: var(--bg);
 window.addEventListener('unload', () => {});
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
 </script>
-<script src="kp-store.js?v=6e87751198"></script>
-<script src="kp-random.js?v=6e87751198"></script>
-<script src="kp-maxnames.js?v=6e87751198"></script>
-<script src="kp-maxdex.js?v=6e87751198"></script>
-<script src="kp-gen3.js?v=6e87751198"></script>
+<script src="kp-store.js?v=c953fa452b"></script>
+<script src="kp-random.js?v=c953fa452b"></script>
+<script src="kp-maxnames.js?v=c953fa452b"></script>
+<script src="kp-maxdex.js?v=c953fa452b"></script>
+<script src="kp-gen3.js?v=c953fa452b"></script>
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
@@ -236,6 +236,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
     await withTimeout(KPStore.migrate(), 30000);
     setup = await withTimeout(KPStore.get('setup'), 15000); run = await withTimeout(KPStore.get('run'), 15000);
     startSave = await withTimeout(KPStore.get('startSave'), 15000);
+    if (startSave && setup && (await withTimeout(KPStore.get('startSaveFor'), 15000)) !== [setup.fam, setup.label, setup.sys].join('|')) { startSave = null; await KPStore.del('startSave'); }
   } catch (e) { setup = null; }
   if (!setup) { $('empty').hidden = false; return; }
 
@@ -262,7 +263,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
   render();
   if (starterNote) { $('status').className = 'status'; $('status').textContent = starterNote; }
 
-  try { presets = await (await fetch('randomizer/presets.json?v=6e87751198')).json(); } catch (e) { presets = {}; }
+  try { presets = await (await fetch('randomizer/presets.json?v=c953fa452b')).json(); } catch (e) { presets = {}; }
   if (setup.noRandom) { const f = $('presetSel').closest('label, .field') || $('presetSel'); f.hidden = true; }
   const sel = $('presetSel');
   for (const p of (presets[setup.fam] || [])) {

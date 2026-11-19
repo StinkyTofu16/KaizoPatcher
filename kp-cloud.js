@@ -139,18 +139,20 @@ const KPCloud = (() => {
 
   // ---- Save backup (private to the player) ----
   const savesRef = () => F.doc(db, 'users', current.uid, 'private', 'saves');
-  async function backupSaves({ startSave, current: cur }) {
+  // Starter saves are kept per game: a save from one FireRed build doesn't work in another.
+  const gameKey = (g) => String(g || '').replace(/[^A-Za-z0-9]+/g, '_');
+  async function backupSaves({ startSave, game, current: cur }) {
     if (!(await init()) || !current) return;
     const out = { updatedAt: F.serverTimestamp() };
-    if (startSave) out.startSave = F.Bytes.fromUint8Array(new Uint8Array(startSave));
+    if (startSave && game) out.starters = { [gameKey(game)]: F.Bytes.fromUint8Array(new Uint8Array(startSave)) };
     if (cur && cur.data) out.current = { runKey: cur.runKey, data: F.Bytes.fromUint8Array(cur.data) };
     await F.setDoc(savesRef(), out, { merge: true });
   }
-  async function fetchSaves() {
+  async function fetchSaves(game) {
     if (!(await init()) || !current) return null;
     const d = await F.getDoc(savesRef()); if (!d.exists()) return null;
-    const v = d.data();
-    return { startSave: v.startSave ? v.startSave.toUint8Array() : null, current: v.current ? { runKey: v.current.runKey, data: v.current.data.toUint8Array() } : null };
+    const v = d.data(), s = v.starters && game ? v.starters[gameKey(game)] : null; // older untagged starter saves are ignored
+    return { startSave: s ? s.toUint8Array() : null, current: v.current ? { runKey: v.current.runKey, data: v.current.data.toUint8Array() } : null };
   }
 
   return { init, onChange, user, status, remembered, signUp, signIn, signOut, resetPassword, startRun, recordProgress, endRun, stats, leaderboard, backupSaves, fetchSaves };

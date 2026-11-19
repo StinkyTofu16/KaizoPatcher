@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=6e87751198">
+<link rel="manifest" href="manifest.webmanifest?v=c953fa452b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,13 +240,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=6e87751198"></script>
-<script src="kp-config.js?v=6e87751198"></script>
-<script src="kp-gen3.js?v=6e87751198"></script>
-<script src="kp-cloud.js?v=6e87751198"></script>
-<script src="kp-maxnames.js?v=6e87751198"></script>
-<script src="kp-tracker.js?v=6e87751198"></script>
-<script src="kp-corecache.js?v=6e87751198"></script>
+<script src="kp-store.js?v=c953fa452b"></script>
+<script src="kp-config.js?v=c953fa452b"></script>
+<script src="kp-gen3.js?v=c953fa452b"></script>
+<script src="kp-cloud.js?v=c953fa452b"></script>
+<script src="kp-maxnames.js?v=c953fa452b"></script>
+<script src="kp-tracker.js?v=c953fa452b"></script>
+<script src="kp-corecache.js?v=c953fa452b"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -258,6 +258,11 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     setup = await KPStore.get('setup'); run = await KPStore.get('run');
     runRom = await KPStore.get('runRom'); startSave = await KPStore.get('startSave');
   } catch (e) {}
+  const gameId = setup ? [setup.fam, setup.label, setup.sys].join('|') : '';
+  // A starter save only fits the game it was made in (a save from another FireRed build gets stuck at the starters),
+  // so it's stored with that game's name and dropped if the game changed.
+  if (setup && startSave && (await KPStore.get('startSaveFor').catch(() => null)) !== gameId) { startSave = null; try { await KPStore.del('startSave'); } catch (e) {} }
+  const storeStart = async (buf) => { await KPStore.set('startSave', buf); await KPStore.set('startSaveFor', gameId); };
   if (!setup || !run || !runRom) { location.replace('play.html'); return; }
   const saveRunMeta = () => KPStore.set('run', run).catch(() => {});
   const b = document.createElement('b'); b.textContent = 'Run #' + run.id;
@@ -284,7 +289,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const mdxGen4 = /MAX\.Dex Gen 4/.test(setup.fam || ''); // MAX.Dex Gen 4 / 4.5: FireRed's memory, more species
   const readCode = maxdex ? 'BPRX' : mdxGen4 ? 'BPRY' : gameCode;
   const unmapped = false;
-  fetch('gen3-species.json?v=6e87751198').then((r) => r.json()).then((j) => {
+  fetch('gen3-species.json?v=c953fa452b').then((r) => r.json()).then((j) => {
     if (maxdex || mdxGen4) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1;
@@ -320,7 +325,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       showSync();
       // A starter save from the player's account (e.g. set up on another phone) is used from the next run on.
       if (KPCloud.user() && !startSave) {
-        KPCloud.fetchSaves().then(async (c) => { if (c && c.startSave && !hasParty(c.startSave)) { startSave = c.startSave.slice().buffer; await KPStore.set('startSave', startSave); showStarter(); } }).catch(() => {});
+        KPCloud.fetchSaves(gameId).then(async (c) => { if (c && c.startSave && !hasParty(c.startSave)) { startSave = c.startSave.slice().buffer; await storeStart(startSave); showStarter(); } }).catch(() => {});
       }
       if (KPCloud.user() && !run.cloudStarted) {
         KPCloud.startRun(runInfo).then(() => { run.cloudStarted = true; return saveRunMeta(); }).catch((err) => console.warn(err));
@@ -360,10 +365,10 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       // The intro save: the first in-game save made before getting a Pokémon.
       if (!startSave && !unmapped && fromSave && fromSave.trainer && fromSave.party.length === 0) {
         startSave = data.slice().buffer;
-        await KPStore.set('startSave', startSave);
+        await storeStart(startSave);
         showStarter();
         toast('Intro saved. New runs will start from here, so you won\u2019t make your character again.');
-        if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch(() => {});
+        if (KPCloud.user()) KPCloud.backupSaves({ startSave, game: gameId }).catch(() => {});
       }
       if (cloudOn) KPCloud.recordProgress(runInfo, p).catch((err) => console.warn(err)).finally(showSync);
       if (cloudOn && KPCloud.user() && data && data.length) {
@@ -625,8 +630,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       if (!data || !data.length) { hint.className = 'hint'; hint.textContent = 'There\u2019s no in-game save yet. Save in the game first, then tap this again.'; return; }
       if (hasParty(data)) { hint.className = 'hint'; hint.textContent = 'This save already has a Pok\u00e9mon, so every new run would start with it. Use a save from before you get your first Pok\u00e9mon (for example in your room after the intro).'; return; }
       startSave = data.slice().buffer;
-      await KPStore.set('startSave', startSave);
-      if (KPCloud.user()) KPCloud.backupSaves({ startSave }).catch((err) => console.warn(err));
+      await storeStart(startSave);
+      if (KPCloud.user()) KPCloud.backupSaves({ startSave, game: gameId }).catch((err) => console.warn(err));
       hint.className = 'hint ok'; hint.textContent = 'Starter save set. New runs will start from it; pick Continue on the title screen.'
         + (setup.core === 'nds' ? ' The site can\u2019t check DS saves, so make sure this one is from before you picked your starter, or every run will start with the same Pok\u00e9mon.' : '');
       showStarter();
@@ -637,8 +642,19 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     $('starterHint').className = 'hint'; $('starterHint').textContent = 'Starter save removed. New runs start from the beginning.';
   });
   // A brand-new run has no save file yet: copy the starter save in, then restart so the title screen offers Continue.
+  // A new run must never pick up an old save. Older versions named saves only by run number, so run #4 of a
+  // different game could load here (a FireRed save in MaxDex gets stuck at the starters): wipe it first.
   function seedStarter() {
-    if (!startSave) return;
+    if (!startSave) {
+      try {
+        const gm = EJS_emulator.gameManager, path = gm.getSaveFilePath();
+        if (!gm.FS.analyzePath(path).exists) return;
+        const old = gm.FS.readFile(path); if (!old.length || old.every((b) => b === 0xFF)) return;
+        gm.FS.writeFile(path, new Uint8Array(old.length).fill(0xFF)); // an erased save chip: the game starts fresh
+        gm.loadSaveFiles(); gm.restart();
+      } catch (err) { console.error('Clearing an old save failed', err); }
+      return;
+    }
     try {
       if (run.seeded) return;
       const gm = EJS_emulator.gameManager, path = gm.getSaveFilePath();
@@ -683,7 +699,9 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   window.EJS_core = isDS ? dsCore : setup.core;
   if (isDS) document.body.classList.add('kp-ds');
   window.EJS_gameUrl = new Blob([runRom]);
-  window.EJS_gameName = 'kp-run-' + run.id;
+  // Each run's save is stored under its own name. Runs from before this change keep their old name so Continue still works.
+  if (!run.ejsName) { run.ejsName = run.launched ? 'kp-run-' + run.id : 'kp-run-' + (setup.key || 'x') + '-' + run.id; saveRunMeta(); }
+  window.EJS_gameName = run.ejsName;
   window.EJS_pathtodata = EJS_VERSION_PATH;
   // A tap on the start button counts as a user gesture, so iPhone lets the game play sound and it never auto-pauses.
   window.EJS_startOnLoaded = false;
