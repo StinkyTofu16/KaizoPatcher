@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=761f34c915">
+<link rel="manifest" href="manifest.webmanifest?v=fbfc4804a9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -240,13 +240,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=761f34c915"></script>
-<script src="kp-config.js?v=761f34c915"></script>
-<script src="kp-gen3.js?v=761f34c915"></script>
-<script src="kp-cloud.js?v=761f34c915"></script>
-<script src="kp-maxnames.js?v=761f34c915"></script>
-<script src="kp-tracker.js?v=761f34c915"></script>
-<script src="kp-corecache.js?v=761f34c915"></script>
+<script src="kp-store.js?v=fbfc4804a9"></script>
+<script src="kp-config.js?v=fbfc4804a9"></script>
+<script src="kp-gen3.js?v=fbfc4804a9"></script>
+<script src="kp-cloud.js?v=fbfc4804a9"></script>
+<script src="kp-maxnames.js?v=fbfc4804a9"></script>
+<script src="kp-tracker.js?v=fbfc4804a9"></script>
+<script src="kp-corecache.js?v=fbfc4804a9"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -281,14 +281,17 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   let species = null, lastBackup = 0;
   // FireRed MaxDex: memory and species differ from FireRed's, so it's read as "BPRX", with names from the game file.
   const maxdex = /MaxDex/.test(setup.fam || '');
-  const readCode = maxdex ? 'BPRX' : gameCode;
-  // MAX.Dex Gen 4 / 4.5: their memory and save layout aren't mapped yet, so no tracker, progress or automatic intro save.
-  const unmapped = /MAX\.Dex Gen 4/.test(setup.fam || '');
-  fetch('gen3-species.json?v=761f34c915').then((r) => r.json()).then((j) => {
-    if (maxdex) {
+  const mdxGen4 = /MAX\.Dex Gen 4/.test(setup.fam || ''); // MAX.Dex Gen 4 / 4.5: FireRed's memory, more species
+  const readCode = maxdex ? 'BPRX' : mdxGen4 ? 'BPRY' : gameCode;
+  const unmapped = false;
+  fetch('gen3-species.json?v=fbfc4804a9').then((r) => r.json()).then((j) => {
+    if (maxdex || mdxGen4) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
-      let base = -1; const pat = [0xBC, 0xE9, 0xE0, 0xD6, 0xD5, 0xE7, 0xD5, 0xE9, 0xE6, 0xFF]; // "Bulbasaur"
-      for (let i = rom.indexOf(pat[0]); i !== -1; i = rom.indexOf(pat[0], i + 1)) { if (pat.every((b, k) => rom[i + k] === b)) { base = i - 11; break; } }
+      let base = -1;
+      for (const pat of [[0xBC, 0xE9, 0xE0, 0xD6, 0xD5, 0xE7, 0xD5, 0xE9, 0xE6, 0xFF], [0xBC, 0xCF, 0xC6, 0xBC, 0xBB, 0xCD, 0xBB, 0xCF, 0xCC, 0xFF]]) { // "Bulbasaur", "BULBASAUR"
+        for (let i = rom.indexOf(pat[0]); i !== -1 && base < 0; i = rom.indexOf(pat[0], i + 1)) { if (pat.every((b, k) => rom[i + k] === b)) base = i - 11; }
+        if (base >= 0) break;
+      }
       if (base >= 0) {
         const out = [];
         for (let i = 0; i < 1290 && rom[base + 11 * i] !== 0x00; i++) out.push([names(rom, base + 11 * i, 11), i <= 411 ? (j[i] ? j[i][1] : 0) : i <= 1050 ? i - 25 : 0]);

@@ -14,7 +14,7 @@ const KPMaxNames = (() => {
   const REGION = { A: 'Alolan', G: 'Galarian', H: 'Hisuian', P: 'Paldean' };
   const title = (s) => (/[a-z]/.test(s) ? s : s.toLowerCase().replace(/(^|[\s\-.])([a-z])/g, (m, a, b) => a + b.toUpperCase()));
   function species(raw) {
-    const out = raw.map((n) => FULL[n] || n);
+    const out = raw.map((n) => FULL[n] || title(n)); // capitals (Gen 4 / 4.5 builds) become "Porygon-Z", "Mr. Mime"
     let last = raw.indexOf('Pecharunt'); if (last < 0) last = raw.length - 1;
     const bases = out.slice(1, last + 1);
     // a form's base: the species whose (full) name starts with the form name minus its letter(s)

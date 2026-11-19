@@ -8,10 +8,11 @@ const KPGen3 = (() => {
     RS: { party: 0x234, flags: 0x1220, badge0: 0x807, champ: 0x804 },
     FRLG: { party: 0x034, flags: 0x0EE0, badge0: 0x820, champ: 0x82C },
   };
-  LAYOUT.FRLGMAX = LAYOUT.FRLG;
-  // "BPRX" is used for FireRed MaxDex (its game code is FireRed's): its RAM moved and it has 1,280 species.
-  const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG', BPRX: 'FRLGMAX' };
-  const MAX_SPECIES = { FRLGMAX: 1290 };
+  LAYOUT.FRLGMAX = LAYOUT.FRLG; LAYOUT.FRLGBIG = LAYOUT.FRLG;
+  // Codes for FireRed hacks that keep FireRed's game code: "BPRX" FireRed MaxDex (its RAM moved, 1,280 species);
+  // "BPRY" the MAX.Dex Gen 4 / 4.5 builds (FireRed's RAM and saves, up to 661 species).
+  const FAMILY = { BPEE: 'E', AXVE: 'RS', AXPE: 'RS', BPRE: 'FRLG', BPGE: 'FRLG', BPRX: 'FRLGMAX', BPRY: 'FRLGBIG' };
+  const MAX_SPECIES = { FRLGMAX: 1290, FRLGBIG: 1290 };
   const maxSp = (code) => MAX_SPECIES[FAMILY[code]] || 411;
   const ORDERS = ['GAEM', 'GAME', 'GEAM', 'GEMA', 'GMAE', 'GMEA', 'AGEM', 'AGME', 'AEGM', 'AEMG', 'AMGE', 'AMEG',
     'EGAM', 'EGMA', 'EAGM', 'EAMG', 'EMGA', 'EMAG', 'MGAE', 'MGEA', 'MAGE', 'MAEG', 'MEGA', 'MEAG'];
@@ -106,6 +107,7 @@ const KPGen3 = (() => {
     FRLG: { partyCount: 0x02024029, party: 0x02024284, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C },
     RS:   { partyCount: 0x03004350, party: 0x03004360, sb1: 0x02025734, sb2: 0x02024EA4 },
     FRLGMAX: { partyCount: 0x02024075, party: 0x020242D0, sb1Ptr: 0x03004C38, sb2Ptr: 0x03004C3C },
+    FRLGBIG: { partyCount: 0x02024029, party: 0x02024284, sb1Ptr: 0x03005008, sb2Ptr: 0x0300500C },
   };
   // mGBA's serialized state: IWRAM at 0x19000 (32 KB), EWRAM at 0x21000 (256 KB). RetroArch may wrap it in "RASTATE" chunks.
   function stateMemory(state) {

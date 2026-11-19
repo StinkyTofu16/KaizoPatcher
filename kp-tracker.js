@@ -147,7 +147,8 @@ const KPTracker = (() => {
   function locateMaxDex(rom) {
     const dv = new DataView(rom.buffer, rom.byteOffset, rom.byteLength), u32 = (o) => dv.getUint32(o, true);
     const T = {};
-    let i = find(rom, [...enc('Bulbasaur'), 0xFF]); if (i < 0) return null; T.species = i - 11;
+    // names: mixed case in MaxDex v1.1, capitals in the MAX.Dex Gen 4 / 4.5 builds (and FireRed, told apart by species count)
+    let i = find(rom, [...enc('Bulbasaur'), 0xFF]); if (i < 0) i = find(rom, [...enc('BULBASAUR'), 0xFF]); if (i < 0) return null; T.species = i - 11;
     // base stats: FireRed's code points to the table at 0x1BC (stats are randomized, so their values can't be searched);
     // Bulbasaur and Ivysaur are Grass/Poison and Charmander is Fire, which gives the entry size.
     T.stats = u32(0x1BC) - 0x08000000;
@@ -158,22 +159,32 @@ const KPTracker = (() => {
     if (!T.statSize) return null;
     // species names run until the move names, which start with spaces
     T.count = 1; while (T.count < 3000 && rom[T.species + 11 * T.count] !== 0x00 && rom[T.species + 11 * T.count] !== 0xFF) T.count++;
+    if (T.count <= 420) return null; // regular FireRed
     for (let k = find(rom, [...enc('Pound'), 0xFF]); k !== -1 && T.moveNames === undefined; k = find(rom, [...enc('Pound'), 0xFF], k + 1)) {
       for (const L of [13, 17, 21]) if (decode(rom, k + L, L) === 'Karate Chop') { T.moveNames = k - L; T.moveNameLen = L; }
     }
+    // move data: v1.1 {effect u16, power, type, split, accuracy, pp}; Gen 4 / 4.5 builds FireRed's {effect, power, type, accuracy, pp}
     for (let k = find(rom, [0, 0, 40, 0, 0, 100, 35]); k !== -1 && T.moves === undefined; k = find(rom, [0, 0, 40, 0, 0, 100, 35], k + 1)) {
-      if (rom[k + 14] === 50 && rom[k + 17] === 100 && rom[k + 18] === 25) T.moves = k - 12;
+      if (rom[k + 14] === 50 && rom[k + 17] === 100 && rom[k + 18] === 25) { T.moves = k - 12; T.v11 = true; }
+    }
+    for (let k = find(rom, [0, 40, 0, 100, 35]); k !== -1 && T.moves === undefined; k = find(rom, [0, 40, 0, 100, 35], k + 1)) {
+      if (rom[k + 13] === 50 && rom[k + 14] === 1 && rom[k + 15] === 100 && rom[k + 16] === 25) { T.moves = k - 12; T.v11 = false; }
     }
     i = find(rom, [...enc('Stench'), 0xFF]);
     for (const L of [13, 17, 21]) if (i >= 0 && decode(rom, i + L, L) === 'Drizzle') { T.abilities = i - L; T.abilLen = L; }
     i = find(rom, [...enc('MASTER BALL'), 0xFF]); T.items = i >= 0 ? i - 44 : -1;
     // level-up moves: a table of one pointer per species, each to 3-byte {move, level} entries ending at level 0xFF
     const isP = (v) => v >= 0x08000000 && v < 0x08000000 + rom.length;
-    const listOk = (p) => { let o = p - 0x08000000, prev = 0; for (let k = 0; k < 120; k++, o += 3) { const l = rom[o + 2]; if (l === 0xFF) return k > 0; if (l > 100 || l < prev) return false; prev = l; } return false; };
-    for (let o = 0; o + 4 * T.count <= rom.length && T.learnsets === undefined; o += 4) {
-      if (!isP(u32(o)) || !isP(u32(o + 4 * (T.count - 2))) || !isP(u32(o + 4)) || !isP(u32(o + 8))) continue;
-      let ok = true; for (let k = 1; k < T.count - 1 && ok; k += 37) ok = isP(u32(o + 4 * k)) && listOk(u32(o + 4 * k));
-      if (ok) T.learnsets = o;
+    // (v1.1: 3-byte {move, level} entries ending at level 0xFF; Gen 4 / 4.5: FireRed's 16-bit move | level << 9, ending 0xFFFF)
+    const listOk3 = (p) => { let o = p - 0x08000000, prev = 0; for (let k = 0; k < 120; k++, o += 3) { const l = rom[o + 2]; if (l === 0xFF) return k > 0; if (l > 100 || l < prev) return false; prev = l; } return false; };
+    const listOk2 = (p) => { let o = p - 0x08000000, prev = 0; for (let k = 0; k < 60; k++, o += 2) { const w = rom[o] | (rom[o + 1] << 8); if (w === 0xFFFF) return k > 0; const l = w >> 9; if (l > 100 || l < prev || !(w & 0x1FF)) return false; prev = l; } return false; };
+    for (const [fmt, listOk] of [['3', listOk3], ['2', listOk2]]) {
+      for (let o = 0; o + 4 * T.count <= rom.length && T.learnsets === undefined; o += 4) {
+        if (!isP(u32(o)) || !isP(u32(o + 4 * (T.count - 2))) || !isP(u32(o + 4)) || !isP(u32(o + 8))) continue;
+        let ok = true; for (let k = 1; k < T.count - 1 && ok; k += 37) ok = isP(u32(o + 4 * k)) && listOk(u32(o + 4 * k));
+        if (ok) { T.learnsets = o; T.learnFmt = fmt; }
+      }
+      if (T.learnsets !== undefined) break;
     }
     if (T.moveNames === undefined || T.moves === undefined || T.abilities === undefined) return null;
     if (T.learnsets === undefined) T.learnsets = -1;
@@ -186,12 +197,15 @@ const KPTracker = (() => {
     let fam = FAMILY[code];
     if (!fam || typeof KPGen3 === 'undefined') return null;
     const MX = fam === 'FRLG' ? locateMaxDex(rom) : null;
-    if (MX) fam = 'FRLGMAX';
-    chart = MX ? MODERN : CHART;
+    // MaxDex v1.1 moved its RAM and battle records and uses the Gen 6+ type chart; the Gen 4 / 4.5 builds keep FireRed's
+    const V11 = !!(MX && MX.v11);
+    if (V11) fam = 'FRLGMAX';
+    chart = V11 ? MODERN : CHART;
     const T = MX || locate(rom, code);
     if (T.species < 0 || T.moveNames < 0 || T.stats < 0 || T.moves < 0) return null;
     // Table formats: FireRed/Emerald's, or MaxDex's.
-    const F = MX ? { maxSp: T.count, statSize: T.statSize, maxMove: 2000, moveNameLen: T.moveNameLen, mPow: 2, mType: 3, mAcc: 5, mPP: 6, abilLen: T.abilLen }
+    const F = V11 ? { maxSp: T.count, statSize: T.statSize, maxMove: 2000, moveNameLen: T.moveNameLen, mPow: 2, mType: 3, mAcc: 5, mPP: 6, abilLen: T.abilLen }
+      : MX ? { maxSp: T.count, statSize: T.statSize, maxMove: 1000, moveNameLen: T.moveNameLen, mPow: 1, mType: 2, mAcc: 3, mPP: 4, abilLen: T.abilLen }
       : { maxSp: 412, statSize: 28, maxMove: 355, moveNameLen: 13, mPow: 1, mType: 2, mAcc: 3, mPP: 4, abilLen: 13 };
     const cache = {};
     // MaxDex display names (full names instead of the game's 10-letter ones, "Galarian Weezing" for "WeezingG")
@@ -202,7 +216,7 @@ const KPTracker = (() => {
       if (cache[i]) return cache[i];
       const e = T.stats + F.statSize * i;
       const s = { name: MX ? (shownNames ? shownNames[i] : nameAt(rom, T.species, 11, i, 11)) : nice(nameAt(rom, T.species, 11, i, 11)), base: [rom[e], rom[e + 1], rom[e + 2], rom[e + 3], rom[e + 4], rom[e + 5]],
-        types: [...new Set([TYPES[rom[e + 6]], TYPES[rom[e + 7]]])], abilities: MX ? [rom[e + 22], rom[e + 24]] : [rom[e + 22], rom[e + 23]] };
+        types: [...new Set([TYPES[rom[e + 6]], TYPES[rom[e + 7]]])], abilities: V11 ? [rom[e + 22], rom[e + 24]] : [rom[e + 22], rom[e + 23]] };
       s.bst = s.base.reduce((a, b) => a + b, 0);
       if (!s.name || !s.bst) return null;
       return (cache[i] = s);
@@ -221,7 +235,7 @@ const KPTracker = (() => {
       let p = ((rom[T.learnsets + 4 * sp] | (rom[T.learnsets + 4 * sp + 1] << 8) | (rom[T.learnsets + 4 * sp + 2] << 16) | (rom[T.learnsets + 4 * sp + 3] << 24)) >>> 0) - 0x08000000;
       if (p < 0 || p >= rom.length) return [];
       const out = [];
-      if (MX) { // 3-byte {move, level} entries; the game stops at the first empty move
+      if (MX && T.learnFmt === '3') { // 3-byte {move, level} entries; the game stops at the first empty move
         for (let k = 0; k < 120 && p + 2 < rom.length; k++, p += 3) { const mv = rom[p] | (rom[p + 1] << 8); if (rom[p + 2] === 0xFF || !mv) break; out.push(rom[p + 2]); }
         return out;
       }
@@ -296,7 +310,7 @@ const KPTracker = (() => {
         const ew = mem.ewram, edv = dvOf(ew);
         // Battle record layout: FireRed/Emerald's 0x58 bytes, or MaxDex's 0x5C (16-bit ability, so the fields after it
         // move: types 0x22/0x23, PP 0x25, HP 0x2A, level 0x2C, max HP 0x2E, PP Ups 0x3D, personality 0x4C, status 0x50).
-        const B = MX ? { size: 0x5C, abil16: true, t1: 0x22, t2: 0x23, pp: 0x25, hp: 0x2A, level: 0x2C, maxHp: 0x2E, ppBonus: 0x3D, pid: 0x4C, status: 0x50 }
+        const B = V11 ? { size: 0x5C, abil16: true, t1: 0x22, t2: 0x23, pp: 0x25, hp: 0x2A, level: 0x2C, maxHp: 0x2E, ppBonus: 0x3D, pid: 0x4C, status: 0x50 }
           : { size: 0x58, abil16: false, t1: 0x21, t2: 0x22, pp: 0x24, hp: 0x28, level: 0x2A, maxHp: 0x2C, ppBonus: 0x3B, pid: 0x48, status: 0x4C };
         const recAbility = (off) => (B.abil16 ? edv.getUint16(off + 0x20, true) : ew[off + 0x20]);
         let mine = null, theirs = null;
