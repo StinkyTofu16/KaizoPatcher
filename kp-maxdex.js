@@ -636,37 +636,6 @@ const KPMaxDex = (() => {
     }
     log.push(changedItems + ' items randomized (' + D.itemBalls.length + ' item balls, ' + D.hidden.length + ' hidden items).', '');
 
-    // Kaizo FireRed (with the Faster FireRed patch) and MaxDex have an item ball beside the three starters in Oak's lab.
-    // The MAX.Dex Gen 4 / 4.5 builds don't, so one is added there with a random item (MaxDex's own is randomized above).
-    let labItem = null;
-    for (const h of D.mapHeaders) {
-      const ev = u32(h + 4) - 0x08000000, n = R[ev], objs = u32(ev + 4) - 0x08000000;
-      if (!n || n > 32 || objs < 0 || objs + n * 24 > R.length) continue;
-      const ob = (i) => objs + i * 24;
-      const balls = [0, 1, 2].map((j) => { for (let i = 0; i < n; i++) if (R[ob(i) + 1] === 92 && u16(ob(i) + 6) === 4 && u16(ob(i) + 20) === 0x28 + j) return i; return -1; });
-      if (balls.includes(-1)) continue;
-      const bx = u16(ob(balls[2]) + 4) + 2; // one tile past the table, like Kaizo FireRed's
-      let taken = false; for (let i = 0; i < n; i++) if (u16(ob(i) + 4) === bx && u16(ob(i) + 6) === 4) taken = true;
-      if (taken) break;
-      // a flag nothing in the game uses (no object hides with it, no script sets or checks it)
-      const usedFlag = (fl) => {
-        for (const hh of D.mapHeaders) { const e2 = u32(hh + 4) - 0x08000000, n2 = R[e2], o2 = u32(e2 + 4) - 0x08000000; if (n2 > 64 || o2 < 0 || o2 + n2 * 24 > R.length) continue; for (let i = 0; i < n2; i++) if (u16(o2 + i * 24 + 20) === fl) return true; }
-        for (let k = 0; k + 2 < R.length; k++) if ((R[k] === 0x29 || R[k] === 0x2A || R[k] === 0x2B) && R[k + 1] === (fl & 255) && R[k + 2] === fl >> 8) return true;
-        return false;
-      };
-      const flag = [0x24C, 0x25A, 0x25F, 0x279, 0x28E].find((fl) => !usedFlag(fl));
-      if (flag === undefined) break;
-      const item = rnd.pick(goodItems);
-      free = (free + 3) & ~3;
-      const script = free; R.set([0x1A, 0x00, 0x80, item & 255, item >> 8, 0x1A, 0x01, 0x80, 0x01, 0x00, 0x09, 0x01, 0x02], script); free += 16;
-      const arr = free; R.set(R.subarray(objs, objs + n * 24), arr);
-      const o = arr + n * 24; R.set(R.subarray(ob(balls[2]), ob(balls[2]) + 24), o); // copy a starter ball, then make it an item ball
-      R[o] = n + 1; w16(o + 4, bx); w32(o + 16, script + 0x08000000); w16(o + 20, flag);
-      free += (n + 1) * 24;
-      R[ev] = n + 1; w32(ev + 4, arr + 0x08000000);
-      labItem = item; break;
-    }
-    if (labItem !== null) log.push('Item beside the starters in Oak’s lab: ' + D.itemName(labItem), '');
     if (!D.abilWide && addRunningShoes(R)) log.push('Running Shoes: given when you beat Brock, like the normal Kaizo (this build removed the aide who gives them).', '');
 
     if (opts.stats || opts.abilities || opts.moves) {
