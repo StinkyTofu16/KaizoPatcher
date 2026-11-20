@@ -131,7 +131,15 @@ const KPMaxDex = (() => {
     D.movePow = (m) => R[D.moveData + m * 12 + MO.pow];
     D.moveAcc = (m) => R[D.moveData + m * 12 + MO.acc];
     // 0 physical, 1 special, 2 status (Gen 3 style for FireRed's layout: Fire, Water, Grass, Electric, Psychic, Ice, Dragon, Dark are special)
-    D.moveCat = (m) => { if (MO.split !== undefined) return R[D.moveData + m * 12 + MO.split]; if (!D.movePow(m)) return 2; return R[D.moveData + m * 12 + MO.type] >= 10 ? 1 : 0; };
+    // Category 0 physical, 1 special, 2 status. MAX.Dex Gen 4 / 4.5 have the Gen 4 physical/special split in the top two
+    // bits of the flags byte (1 physical, 2 special, 3 status; confirmed in an emulator: Fire Punch hits with Attack,
+    // Flamethrower with Sp. Atk). Plain FireRed leaves those bits 0 and goes by type.
+    if (MO.split === undefined) { let n = 0, s = 0; for (let m = 1; m < 355; m++) { if (!R[D.moveData + m * 12 + MO.pp]) continue; n++; if (R[D.moveData + m * 12 + 8] >> 6) s++; } D.flagSplit = n > 0 && s > n * 0.9; }
+    D.moveCat = (m) => {
+      if (MO.split !== undefined) return R[D.moveData + m * 12 + MO.split];
+      if (D.flagSplit) { const c = R[D.moveData + m * 12 + 8] >> 6; if (c) return c - 1; }
+      if (!D.movePow(m)) return 2; return R[D.moveData + m * 12 + MO.type] >= 10 ? 1 : 0;
+    };
     D.moveName = (m) => { if (mn < 0) return '#' + m; let t = '', o = mn + (m - 1) * mL; for (let k = 0; k < mL && R[o + k] !== 0xFF; k++) t += DEC[R[o + k]] || '?'; return t.trim() || '#' + m; };
 
     D.moveCount = 1; if (mn >= 0) while (D.moveCount < 3000 && /^[A-Za-z0-9 .'\-,]+$/.test(D.moveName(D.moveCount)) && !/^#/.test(D.moveName(D.moveCount))) D.moveCount++;

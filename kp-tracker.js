@@ -221,12 +221,21 @@ const KPTracker = (() => {
       if (!s.name || !s.bst) return null;
       return (cache[i] = s);
     };
+    // Physical / special / status. MaxDex v1.1 stores it (0, 1, 2); MAX.Dex Gen 4 / 4.5 (and other FireRed-format hacks
+    // with the split) keep it in the top two bits of the flags byte (1, 2, 3); plain Gen 3 games go by type.
+    let flagSplit = false;
+    if (!V11) { let n = 0, k = 0; for (let i = 1; i < 355; i++) { const e = T.moves + 12 * i; if (!rom[e + F.mPP]) continue; n++; if (rom[e + 8] >> 6) k++; } flagSplit = n > 0 && k > n * 0.9; }
+    const SPECIAL = new Set(['Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark']);
+    const CATS = ['physical', 'special', 'status'];
     const move = (i) => {
       if (!(i > 0 && i < F.maxMove)) return null;
       const e = T.moves + 12 * i;
       const name = nameAt(rom, T.moveNames, F.moveNameLen, i, F.moveNameLen);
       if (!name || !rom[e + F.mPP]) return null;
-      return { id: i, name: MX ? name : nice(name), power: rom[e + F.mPow], type: TYPES[rom[e + F.mType]] || '???', acc: rom[e + F.mAcc], pp: rom[e + F.mPP] };
+      const type = TYPES[rom[e + F.mType]] || '???', power = rom[e + F.mPow];
+      let cat = V11 ? CATS[rom[e + 4]] : flagSplit && (rom[e + 8] >> 6) ? CATS[(rom[e + 8] >> 6) - 1] : null;
+      if (!cat) cat = !power ? 'status' : SPECIAL.has(type) ? 'special' : 'physical';
+      return { id: i, name: MX ? name : nice(name), power, type, cat, acc: rom[e + F.mAcc], pp: rom[e + F.mPP] };
     };
     // Levels at which a species learns moves, from the (randomized) level-up lists.
     const learnLevels = (sp) => {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=336f5fe63c">
+<link rel="manifest" href="manifest.webmanifest?v=cd9ad6157c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -97,6 +97,11 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .trk .mv2 .l1 { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .trk .mv2 .dot { width: 6px; height: 6px; }
 .trk .mv2 .l2 { display: flex; gap: 6px; padding-left: 10px; }
+/* move category: physical / special / status */
+.trk .cat { font: 700 9px ui-monospace, Menlo, monospace; letter-spacing: .02em; padding: 0 4px; border-radius: 4px; line-height: 1.5; align-self: center; }
+.trk .cat.physical { background: #c2410c; color: #fff; }
+.trk .cat.special { background: #1d4ed8; color: #fff; }
+.trk .cat.status { background: #52525b; color: #fff; }
 #trkL, #trkR { display: none; }
 #trkR, #trkU { pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .trk .seen { color: #98a3b3; font-style: italic; }
@@ -240,13 +245,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=336f5fe63c"></script>
-<script src="kp-config.js?v=336f5fe63c"></script>
-<script src="kp-gen3.js?v=336f5fe63c"></script>
-<script src="kp-cloud.js?v=336f5fe63c"></script>
-<script src="kp-maxnames.js?v=336f5fe63c"></script>
-<script src="kp-tracker.js?v=336f5fe63c"></script>
-<script src="kp-corecache.js?v=336f5fe63c"></script>
+<script src="kp-store.js?v=cd9ad6157c"></script>
+<script src="kp-config.js?v=cd9ad6157c"></script>
+<script src="kp-gen3.js?v=cd9ad6157c"></script>
+<script src="kp-cloud.js?v=cd9ad6157c"></script>
+<script src="kp-maxnames.js?v=cd9ad6157c"></script>
+<script src="kp-tracker.js?v=cd9ad6157c"></script>
+<script src="kp-corecache.js?v=cd9ad6157c"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -289,7 +294,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const mdxGen4 = /MAX\.Dex Gen 4/.test(setup.fam || ''); // MAX.Dex Gen 4 / 4.5: FireRed's memory, more species
   const readCode = maxdex ? 'BPRX' : mdxGen4 ? 'BPRY' : gameCode;
   const unmapped = false;
-  fetch('gen3-species.json?v=336f5fe63c').then((r) => r.json()).then((j) => {
+  fetch('gen3-species.json?v=cd9ad6157c').then((r) => r.json()).then((j) => {
     if (maxdex || mdxGen4) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1;
@@ -476,6 +481,9 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b><span class="' + (m.up === k ? 'plus' : m.down === k ? 'minus' : '') + '">' + v + '</span>' + stageTxt(m, k) + '</span>';
   const healsTxt = (m) => m.heals ? m.heals.count + (m.heals.count === 1 ? ' heal' : ' heals') + ' (' + m.heals.pct + '%)' : '—';
   const powTxt = (mv) => mv.power === 0 ? '—' : mv.power === 1 ? 'var' : mv.power;
+  const CAT_TXT = { physical: 'PHYS', special: 'SPEC', status: 'STAT' };
+  const CAT_SHORT = { physical: 'P', special: 'S', status: 'St' }; // the narrow two-column rows (portrait)
+  const catTxt = (mv, short) => mv.cat && CAT_TXT[mv.cat] ? '<span class="cat ' + mv.cat + '" title="' + mv.cat + '">' + (short ? CAT_SHORT : CAT_TXT)[mv.cat] + '</span>' : '';
   const EMPTY = '<div class="empty">The tracker shows your Pokémon here once you have one.</div>';
   function sideLeft(d) {
     const m = d.mon; if (!m) return EMPTY;
@@ -491,12 +499,12 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     const m = d.mon; if (!m) return '';
     if (movesView === 'foe' && d.foe) {
       const seen = foeSeen(d.foe), rows = seen.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
-        + '<div class="l2"><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span><span class="num">' + mv.acc + '%</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div></div>');
+        + '<div class="l2">' + catTxt(mv) + '<span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span><span class="num">' + mv.acc + '%</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div></div>');
       for (let i = seen.length; i < 4; i++) rows.push('<div class="mv2"><div class="l1"><span class="mn seen">? not seen yet</span></div></div>');
       return '<div class="tabhint">' + esc(d.foe.name) + '\u2019s moves</div>' + rows.join('');
     }
     return m.moves.map((mv) => '<div class="mv2"><div class="l1">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span></div>'
-      + '<div class="l2"><span class="num">' + mv.ppLeft + 'pp</span><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span>' + effTxt(mv.eff) + '</div></div>').join('')
+      + '<div class="l2">' + catTxt(mv) + '<span class="num">' + mv.ppLeft + 'pp</span><span class="num">' + powTxt(mv) + (mv.power > 1 ? 'p' : '') + '</span>' + effTxt(mv.eff) + '</div></div>').join('')
       + '<div class="ai"><span class="k2">Next</span> ' + nextTxt(m, true) + '</div>'
       + (d.foe ? '<div class="ai" style="text-align:right;font-size:15px;line-height:1;color:#98a3b3" aria-label="Tap to see the opponent\u2019s moves">\u203A</div>' : '');
   }
@@ -507,8 +515,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
       + '<div class="stats">' + statOrder.slice(1).map((k) => statSpan(m, k, m.stats[k])).join('') + '<span><b class="k">BST</b>' + m.bst + '</span></div>'
       + (h >= 112 ? '<div class="stats" style="font-family:inherit"><span><b class="k">Abil</b>' + esc(m.ability || '—') + '</span><span><b class="k">Item</b>' + esc(m.item || '—') + '</span><span><b class="k">Bag</b>' + healsTxt(m) + '</span><span><b class="k">Next move</b>' + nextTxt(m) + '</span></div>' : '')
       + (movesView === 'foe' && d.foe
-        ? '<div class="tabhint">' + esc(d.foe.name) + '\u2019s moves seen \u00b7 tap for yours</div><div class="moves">' + (() => { const seen = foeSeen(d.foe), out = seen.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div>'); for (let i = seen.length; i < 4; i++) out.push('<div class="mv"><span class="mn seen">? not seen yet</span></div>'); return out.join(''); })() + '</div>'
-        : '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span><span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>')
+        ? '<div class="tabhint">' + esc(d.foe.name) + '\u2019s moves seen \u00b7 tap for yours</div><div class="moves">' + (() => { const seen = foeSeen(d.foe), out = seen.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span>' + catTxt(mv, true) + '<span class="num">' + powTxt(mv) + '</span>' + effTxt(mv.power ? KPTracker.effectiveness(mv.type, m.types) : null) + '</div>'); for (let i = seen.length; i < 4; i++) out.push('<div class="mv"><span class="mn seen">? not seen yet</span></div>'); return out.join(''); })() + '</div>'
+        : '<div class="moves">' + m.moves.map((mv) => '<div class="mv">' + dot(mv.type) + '<span class="mn">' + esc(mv.name) + '</span>' + catTxt(mv, true) + '<span class="num">' + powTxt(mv) + '</span><span class="num">' + mv.ppLeft + 'pp</span>' + effTxt(mv.eff) + '</div>').join('') + '</div>')
       + (d.foe && h >= 140 ? '<div class="foe"><span class="k2">Foe</span><b>' + esc(d.foe.name) + '</b><span class="lv">Lv' + d.foe.level + '</span></div>' : '');
   }
   // Upright, the panel fills the gap between the game picture (top, 3:2) and L/R above the controls.
@@ -533,7 +541,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
     if (!foe || !foe.used || !foe.used.length) return;
     const bag = seenMoves[foe.species] || (seenMoves[foe.species] = {});
     let changed = false;
-    for (const mv of foe.used) if (!bag[mv.id]) { bag[mv.id] = { id: mv.id, name: mv.name, type: mv.type, power: mv.power, acc: mv.acc }; changed = true; }
+    for (const mv of foe.used) if (!bag[mv.id] || (mv.cat && !bag[mv.id].cat)) { bag[mv.id] = { id: mv.id, name: mv.name, type: mv.type, power: mv.power, acc: mv.acc, cat: mv.cat }; changed = true; }
     if (changed) { try { localStorage.setItem(seenKey, JSON.stringify(seenMoves)); } catch (e) {} }
   }
   const foeSeen = (foe) => Object.values(seenMoves[foe.species] || {}).slice(0, 4);
