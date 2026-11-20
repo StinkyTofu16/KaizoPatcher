@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>KaizoPatcher</title>
-<link rel="manifest" href="manifest.webmanifest?v=c8d78c91fb">
+<link rel="manifest" href="manifest.webmanifest?v=e38c4ffcc3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -97,10 +97,10 @@ body:not(.kp-tools) .ejs_menu_bar { display: none !important; }
 .trk .mv2 .l1 { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .trk .mv2 .dot { width: 6px; height: 6px; }
 .trk .mv2 .l2 { display: flex; gap: 6px; padding-left: 10px; }
-/* move category symbol: ★ physical, ● special */
+/* move category symbol: ✱ physical, ● special */
 .trk .mv2 .l1 .mn { flex: 0 1 auto; } /* keeps the symbol right after the move name */
 .trk .catsym { flex: none; font-size: 11px; line-height: 1; margin-left: 4px; align-self: center; }
-.trk .catsym.physical { color: #fb923c; }
+.trk .catsym.physical { color: #fb923c; font-weight: 700; }
 .trk .catsym.special { color: #60a5fa; font-size: 9px; }
 #trkL, #trkR { display: none; }
 #trkR, #trkU { pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -245,13 +245,13 @@ body.kp-ds #dsCoreBtn { display: flex; }
 
 <script>
 </script>
-<script src="kp-store.js?v=c8d78c91fb"></script>
-<script src="kp-config.js?v=c8d78c91fb"></script>
-<script src="kp-gen3.js?v=c8d78c91fb"></script>
-<script src="kp-cloud.js?v=c8d78c91fb"></script>
-<script src="kp-maxnames.js?v=c8d78c91fb"></script>
-<script src="kp-tracker.js?v=c8d78c91fb"></script>
-<script src="kp-corecache.js?v=c8d78c91fb"></script>
+<script src="kp-store.js?v=e38c4ffcc3"></script>
+<script src="kp-config.js?v=e38c4ffcc3"></script>
+<script src="kp-gen3.js?v=e38c4ffcc3"></script>
+<script src="kp-cloud.js?v=e38c4ffcc3"></script>
+<script src="kp-maxnames.js?v=e38c4ffcc3"></script>
+<script src="kp-tracker.js?v=e38c4ffcc3"></script>
+<script src="kp-corecache.js?v=e38c4ffcc3"></script>
 <script>
 const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
 (async () => {
@@ -294,7 +294,7 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const mdxGen4 = /MAX\.Dex Gen 4/.test(setup.fam || ''); // MAX.Dex Gen 4 / 4.5: FireRed's memory, more species
   const readCode = maxdex ? 'BPRX' : mdxGen4 ? 'BPRY' : gameCode;
   const unmapped = false;
-  fetch('gen3-species.json?v=c8d78c91fb').then((r) => r.json()).then((j) => {
+  fetch('gen3-species.json?v=e38c4ffcc3').then((r) => r.json()).then((j) => {
     if (maxdex || mdxGen4) {
       const rom = new Uint8Array(runRom), names = KPGen3.decodeText;
       let base = -1;
@@ -481,8 +481,8 @@ const EJS_VERSION_PATH = 'https://cdn.emulatorjs.org/4.2.3/data/';
   const statSpan = (m, k, v) => '<span><b class="k">' + k + '</b><span class="' + (m.up === k ? 'plus' : m.down === k ? 'minus' : '') + '">' + v + '</span>' + stageTxt(m, k) + '</span>';
   const healsTxt = (m) => m.heals ? m.heals.count + (m.heals.count === 1 ? ' heal' : ' heals') + ' (' + m.heals.pct + '%)' : '—';
   const powTxt = (mv) => mv.power === 0 ? '—' : mv.power === 1 ? 'var' : mv.power;
-  // Move category as a symbol after the name: star = physical, circle = special, nothing for status moves.
-  const CAT_SYM = { physical: '\u2605', special: '\u25CF' };
+  // Move category as a symbol after the name: asterisk = physical, circle = special, nothing for status moves.
+  const CAT_SYM = { physical: '\u2731', special: '\u25CF' };
   const catTxt = (mv) => CAT_SYM[mv.cat] ? '<span class="catsym ' + mv.cat + '" title="' + mv.cat + '">' + CAT_SYM[mv.cat] + '</span>' : '';
   const EMPTY = '<div class="empty">The tracker shows your Pokémon here once you have one.</div>';
   function sideLeft(d) {
