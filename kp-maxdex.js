@@ -246,28 +246,26 @@ const KPMaxDex = (() => {
   }
 
 
-  // MAX.Dex Gen 4 / 4.5 skip Oak's parcel errand (Mom sends you straight to the lab and the Pokédex comes early),
-  // and with it the aide who hands out the Running Shoes, so the player never gets them. Tested in an emulator:
-  // no Running Shoes at that point even in the unmodified game. Fix: Mom's send-off script also gives the Running
-  // Shoes (flag 0x82F). Returns the number of bytes used at `at`, or 0 if the script isn't there (other builds).
-  const MOM_SENDOFF = [0x68, 0xAE, 0x16, 0x55, 0x40, 0x01, 0x00, 0x2A, 0x2B, 0x00, 0x16, 0x50, 0x40, 0x01, 0x00, 0x29, 0x2C, 0x00];
+  // Running Shoes. FireRed gives them through Oak's aide in Pewter City after Brock; the Faster FireRed patch that the
+  // site's normal Kaizo runs on hands them over right when Brock is beaten instead. MAX.Dex Gen 4 / 4.5 still use
+  // FireRed's version but removed the aide, so the shoes never come (also in the unmodified game). Fix: give them
+  // after Brock exactly like Faster FireRed does, by rewriting Brock's script in place to Faster FireRed's bytes.
+  // Returns 1 if changed, 0 if the script isn't there (other builds). `at` is unused (no free space needed).
+  const BROCK_AFTER = [0x29, 0xB0, 0x04, 0x29, 0x20, 0x08, 0x16, 0x6C, 0x40, 0x01, 0x00, 0x29, 0x2E, 0x00, 0x2A, 0x92, 0x00];
+  const BROCK_FASTER = [0x16, 0x6C, 0x40, 0x02, 0x00, 0x29, 0x2F, 0x08, 0x29, 0x2E, 0x00]; // setvar 0x406C 2, setflag RUNNING SHOES, setflag 0x2E
   function findBytes(R, pat, from = 0) {
     outer: for (let i = from; i + pat.length <= R.length; i++) { for (let k = 0; k < pat.length; k++) if (R[i + k] !== pat[k]) continue outer; return i; }
     return -1;
   }
-  function addRunningShoes(R, at) {
-    const o = findBytes(R, MOM_SENDOFF); if (o < 0 || findBytes(R, MOM_SENDOFF, o + 1) >= 0) return 0;
-    const back = 0x08000000 + o + 7; // continue after "setvar 0x4055, 1"
-    const s = [...MOM_SENDOFF.slice(0, 7), 0x29, 0x2F, 0x08, 0x05, back & 255, (back >> 8) & 255, (back >> 16) & 255, back >>> 24];
-    R.set(s, at);
-    const to = 0x08000000 + at; R.set([0x05, to & 255, (to >> 8) & 255, (to >> 16) & 255, to >>> 24, 0x00, 0x00], o); // goto (+2 unused bytes)
-    return s.length;
+  function addRunningShoes(R) {
+    const o = findBytes(R, BROCK_AFTER); if (o < 0 || findBytes(R, BROCK_AFTER, o + 1) >= 0) return 0;
+    R.set(BROCK_FASTER, o + 6);
+    return 1;
   }
   // For games played without the randomizer: same fix, placed in empty space at the end of the ROM.
   function fixups(input) {
     const R = new Uint8Array(input);
-    let at = -1; for (let i = R.length - 64; i > R.length / 2; i -= 16) { let ok = true; for (let k = 0; k < 64; k++) if (R[i + k] !== 0xFF) { ok = false; break; } if (ok) { at = i; break; } }
-    if (at > 0) addRunningShoes(R, at & ~3);
+    addRunningShoes(R);
     return R;
   }
 
@@ -669,7 +667,7 @@ const KPMaxDex = (() => {
       labItem = item; break;
     }
     if (labItem !== null) log.push('Item beside the starters in Oak’s lab: ' + D.itemName(labItem), '');
-    if (!D.abilWide) { free = (free + 3) & ~3; const used = addRunningShoes(R, free); if (used) { free += used; log.push('Running Shoes: given when Mom sends you to Oak\u2019s lab (this build skips the aide who normally gives them).', ''); } }
+    if (!D.abilWide && addRunningShoes(R)) log.push('Running Shoes: given when you beat Brock, like the normal Kaizo (this build removed the aide who gives them).', '');
 
     if (opts.stats || opts.abilities || opts.moves) {
       log.push('--Pok\u00e9mon (stats, abilities, level-up moves)--');
